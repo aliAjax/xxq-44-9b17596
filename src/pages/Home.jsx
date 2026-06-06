@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Search, Filter, Calendar, ChevronDown } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Search, Filter, ChevronDown } from 'lucide-react'
 import FrontendLayout from '../components/FrontendLayout'
 import ArticleCard from '../components/ArticleCard'
 import Pagination from '../components/Pagination'
@@ -8,8 +8,7 @@ import { useApp } from '../context/AppContext'
 const PAGE_SIZE = 10
 
 export default function Home() {
-  const { state, getPublishedArticles } = useApp()
-  const [articles, setArticles] = useState([])
+  const { state } = useApp()
   const [currentPage, setCurrentPage] = useState(1)
   const [keyword, setKeyword] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
@@ -18,19 +17,34 @@ export default function Home() {
   const [endDate, setEndDate] = useState('')
   const [showFilter, setShowFilter] = useState(false)
 
-  useEffect(() => {
-    const filtered = getPublishedArticles({
-      category,
-      keyword: searchKeyword,
-      startDate,
-      endDate,
-    })
-    setArticles(filtered)
-    setCurrentPage(1)
-  }, [category, searchKeyword, startDate, endDate, state.articles])
+  const articles = useMemo(() => {
+    let result = state.articles.filter((a) => a.status === 'published')
+
+    if (category) {
+      result = result.filter((a) => a.category === category)
+    }
+    if (searchKeyword) {
+      const kw = searchKeyword.toLowerCase()
+      result = result.filter(
+        (a) =>
+          a.title.toLowerCase().includes(kw) ||
+          a.content.toLowerCase().includes(kw)
+      )
+    }
+    if (startDate) {
+      result = result.filter((a) => a.publishDate >= startDate)
+    }
+    if (endDate) {
+      result = result.filter((a) => a.publishDate <= endDate)
+    }
+
+    result.sort((a, b) => new Date(b.publishDate) - new Date(a.publishDate))
+    return result
+  }, [state.articles, category, searchKeyword, startDate, endDate])
 
   const handleSearch = () => {
     setSearchKeyword(keyword)
+    setCurrentPage(1)
   }
 
   const handleKeyPress = (e) => {
@@ -93,7 +107,10 @@ export default function Home() {
                 <label className="block text-sm text-gray-600 mb-1.5">公开类别</label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  onChange={(e) => {
+                    setCategory(e.target.value)
+                    setCurrentPage(1)
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="">全部类别</option>
@@ -109,7 +126,10 @@ export default function Home() {
                 <input
                   type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => {
+                    setStartDate(e.target.value)
+                    setCurrentPage(1)
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
@@ -118,7 +138,10 @@ export default function Home() {
                 <input
                   type="date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => {
+                    setEndDate(e.target.value)
+                    setCurrentPage(1)
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
@@ -177,6 +200,7 @@ export default function Home() {
                   onClick={() => {
                     setCategory('')
                     setShowFilter(false)
+                    setCurrentPage(1)
                   }}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                     !category
@@ -193,6 +217,7 @@ export default function Home() {
                     onClick={() => {
                       setCategory(cat.code)
                       setShowFilter(false)
+                      setCurrentPage(1)
                     }}
                     className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                       category === cat.code

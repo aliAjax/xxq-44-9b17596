@@ -73,7 +73,7 @@ function reducer(state, action) {
                 reviewerName: action.payload.reviewerName,
                 rejectReason: action.payload.rejectReason || '',
                 reviewedAt: action.payload.reviewedAt,
-                publishDate: action.payload.status === 'published' ? action.payload.publishDate : item.publishDate,
+                publishDate: action.payload.publishDate || item.publishDate,
               }
             : item
         ),
@@ -172,6 +172,9 @@ export function AppProvider({ children }) {
   const reviewArticle = (id, status, rejectReason = '') => {
     const article = state.articles.find((a) => a.id === id)
     if (!article) return null
+    const newPublishDate = status === 'published'
+      ? (article.publishDate || formatDate(new Date()))
+      : article.publishDate
     const reviewData = {
       id,
       status,
@@ -179,7 +182,7 @@ export function AppProvider({ children }) {
       reviewerName: state.currentUser.name,
       rejectReason,
       reviewedAt: formatDate(new Date()),
-      publishDate: status === 'published' ? formatDate(new Date()) : '',
+      publishDate: newPublishDate,
     }
     const articles = state.articles.map((a) => {
       if (a.id === id) {
@@ -190,7 +193,7 @@ export function AppProvider({ children }) {
           reviewerName: reviewData.reviewerName,
           rejectReason,
           reviewedAt: reviewData.reviewedAt,
-          publishDate: status === 'published' ? formatDate(new Date()) : a.publishDate,
+          publishDate: newPublishDate,
         }
       }
       return a

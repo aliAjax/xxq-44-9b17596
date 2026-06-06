@@ -13,7 +13,6 @@ import {
   AlignCenter,
   AlignRight,
   Paperclip,
-  X,
 } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import { useApp } from '../context/AppContext'
