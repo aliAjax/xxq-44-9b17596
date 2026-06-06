@@ -3,7 +3,7 @@ import { CheckCircle, XCircle, Eye, MessageSquare } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 
 const PAGE_SIZE = 10
 

@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Calendar, Building, FolderOpen, Paperclip, Download } from 'lucide-react'
 import FrontendLayout from '../components/FrontendLayout'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 
 export default function Detail() {
   const { id } = useParams()

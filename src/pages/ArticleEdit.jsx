@@ -15,7 +15,7 @@ import {
   Paperclip,
 } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 
 export default function ArticleEdit() {
   const { id } = useParams()

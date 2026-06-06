@@ -1,9 +1,8 @@
-import { createContext, useContext, useReducer, useEffect } from 'react'
+import { useReducer, useEffect } from 'react'
 import { storage, STORAGE_KEYS } from '../utils/storage'
 import { mockArticles, users, categories, departments } from '../data/mockData'
 import { generateId, formatDate } from '../utils/helpers'
-
-const AppContext = createContext()
+import { AppContext } from './useApp'
 
 const initialState = {
   articles: [],
@@ -248,12 +247,4 @@ export function AppProvider({ children }) {
       {children}
     </AppContext.Provider>
   )
-}
-
-export function useApp() {
-  const context = useContext(AppContext)
-  if (!context) {
-    throw new Error('useApp must be used within an AppProvider')
-  }
-  return context
 }

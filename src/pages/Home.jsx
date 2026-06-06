@@ -3,7 +3,7 @@ import { Search, Filter, ChevronDown } from 'lucide-react'
 import FrontendLayout from '../components/FrontendLayout'
 import ArticleCard from '../components/ArticleCard'
 import Pagination from '../components/Pagination'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 
 const PAGE_SIZE = 10
 

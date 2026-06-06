@@ -1,6 +1,6 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2 } from 'lucide-react'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 
 export default function AdminLayout({ children }) {
   const { state, logout } = useApp()
