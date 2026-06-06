@@ -1,0 +1,42 @@
+const STORAGE_KEYS = {
+  ARTICLES: 'gov_articles',
+  CURRENT_USER: 'gov_current_user',
+  USERS: 'gov_users',
+  CATEGORIES: 'gov_categories',
+  DEPARTMENTS: 'gov_departments',
+  INITIALIZED: 'gov_initialized',
+}
+
+export const storage = {
+  get(key) {
+    try {
+      const value = localStorage.getItem(key)
+      return value ? JSON.parse(value) : null
+    } catch (e) {
+      console.error('Storage get error:', e)
+      return null
+    }
+  },
+
+  set(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value))
+      return true
+    } catch (e) {
+      console.error('Storage set error:', e)
+      return false
+    }
+  },
+
+  remove(key) {
+    try {
+      localStorage.removeItem(key)
+      return true
+    } catch (e) {
+      console.error('Storage remove error:', e)
+      return false
+    }
+  },
+}
+
+export { STORAGE_KEYS }

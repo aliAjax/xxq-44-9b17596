@@ -1,0 +1,143 @@
+import { useState } from 'react'
+import { useNavigate, Navigate } from 'react-router-dom'
+import { Building2, User, Lock, Shield } from 'lucide-react'
+import { useApp } from '../context/AppContext'
+
+export default function Login() {
+  const { state, login } = useApp()
+  const navigate = useNavigate()
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [role, setRole] = useState('editor')
+  const [error, setError] = useState('')
+
+  if (state.currentUser) {
+    const redirectPath =
+      state.currentUser.role === 'editor' ? '/admin/articles' : '/admin/review'
+    return <Navigate to={redirectPath} replace />
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    setError('')
+
+    if (!username || !password) {
+      setError('请输入用户名和密码')
+      return
+    }
+
+    const result = login(username, password, role)
+    if (result.success) {
+      const redirectPath =
+        result.user.role === 'editor' ? '/admin/articles' : '/admin/review'
+      navigate(redirectPath)
+    } else {
+      setError(result.message)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-primary-800 via-primary-900 to-gray-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-2xl mb-4">
+            <Building2 className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">政务公开后台管理系统</h1>
+          <p className="text-primary-200 text-sm">请登录以继续管理工作</p>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-2xl p-8">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                用户角色
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRole('editor')}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border transition-all ${
+                    role === 'editor'
+                      ? 'border-primary-600 bg-primary-50 text-primary-700 font-medium'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <User className="w-4 h-4" />
+                  工作人员
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole('reviewer')}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border transition-all ${
+                    role === 'reviewer'
+                      ? 'border-primary-600 bg-primary-50 text-primary-700 font-medium'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <Shield className="w-4 h-4" />
+                  审核人员
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                用户名
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="请输入用户名"
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                密码
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="请输入密码"
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
+                  onKeyPress={(e) => e.key === 'Enter' && handleSubmit(e)}
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="bg-red-50 text-red-600 text-sm px-4 py-2.5 rounded-lg">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full py-3 bg-primary-800 hover:bg-primary-900 text-white font-medium rounded-lg transition-colors"
+            >
+              登 录
+            </button>
+          </form>
+
+          <div className="mt-6 pt-6 border-t border-gray-100 text-center text-xs text-gray-400">
+            <p>测试账号：editor / 123456（工作人员）</p>
+            <p>测试账号：reviewer / 123456（审核人员）</p>
+          </div>
+        </div>
+
+        <p className="text-center text-primary-300 text-xs mt-6">
+          © 2024 政务公开信息发布系统
+        </p>
+      </div>
+    </div>
+  )
+}
