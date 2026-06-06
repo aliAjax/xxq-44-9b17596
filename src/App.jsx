@@ -9,6 +9,7 @@ import ArticleEdit from './pages/ArticleEdit'
 import ReviewList from './pages/ReviewList'
 import ReviewDashboard from './pages/ReviewDashboard'
 import RecycleBin from './pages/RecycleBin'
+import DepartmentStats from './pages/DepartmentStats'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -50,6 +51,15 @@ function App() {
         element={
           <ProtectedRoute allowedRoles={['editor']}>
             <RecycleBin />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/department-stats"
+        element={
+          <ProtectedRoute allowedRoles={['editor']}>
+            <DepartmentStats />
           </ProtectedRoute>
         }
       />
