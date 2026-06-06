@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
   DEPARTMENTS: 'gov_departments',
   REJECT_TEMPLATES: 'gov_reject_templates',
   REJECT_TEMPLATES_INITIALIZED: 'gov_reject_templates_initialized',
+  OPERATION_LOGS: 'gov_operation_logs',
   INITIALIZED: 'gov_initialized',
 }
 

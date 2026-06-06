@@ -1,7 +1,7 @@
 import { useReducer, useEffect } from 'react'
 import { storage, STORAGE_KEYS } from '../utils/storage'
 import { mockArticles, users, categories, departments, rejectTemplates } from '../data/mockData'
-import { generateId, formatDate, formatDateTime } from '../utils/helpers'
+import { generateId, formatDate, formatDateTime, OPERATION_ACTIONS } from '../utils/helpers'
 import { AppContext } from './useApp'
 
 const initialState = {
@@ -11,6 +11,7 @@ const initialState = {
   categories: [],
   departments: [],
   rejectTemplates: [],
+  operationLogs: [],
 }
 
 const actionTypes = {
@@ -26,6 +27,7 @@ const actionTypes = {
   ADD_REJECT_TEMPLATE: 'ADD_REJECT_TEMPLATE',
   UPDATE_REJECT_TEMPLATE: 'UPDATE_REJECT_TEMPLATE',
   DELETE_REJECT_TEMPLATE: 'DELETE_REJECT_TEMPLATE',
+  ADD_OPERATION_LOG: 'ADD_OPERATION_LOG',
 }
 
 function reducer(state, action) {
@@ -38,6 +40,7 @@ function reducer(state, action) {
         categories: action.payload.categories,
         departments: action.payload.departments,
         rejectTemplates: action.payload.rejectTemplates,
+        operationLogs: action.payload.operationLogs,
         currentUser: action.payload.currentUser,
       }
     case actionTypes.SET_USER:
@@ -115,6 +118,11 @@ function reducer(state, action) {
         ...state,
         rejectTemplates: state.rejectTemplates.filter((t) => t.id !== action.payload),
       }
+    case actionTypes.ADD_OPERATION_LOG:
+      return {
+        ...state,
+        operationLogs: [action.payload, ...state.operationLogs],
+      }
     default:
       return state
   }
@@ -152,6 +160,7 @@ export function AppProvider({ children }) {
         categories: storage.get(STORAGE_KEYS.CATEGORIES) || [],
         departments: storage.get(STORAGE_KEYS.DEPARTMENTS) || [],
         rejectTemplates: storage.get(STORAGE_KEYS.REJECT_TEMPLATES) || [],
+        operationLogs: storage.get(STORAGE_KEYS.OPERATION_LOGS) || [],
         currentUser: storage.get(STORAGE_KEYS.CURRENT_USER),
       },
     })
@@ -175,6 +184,22 @@ export function AppProvider({ children }) {
     dispatch({ type: actionTypes.LOGOUT })
   }
 
+  const addOperationLog = (action, articleTitle) => {
+    if (!state.currentUser) return
+    const log = {
+      id: generateId(),
+      action,
+      articleTitle,
+      operatorId: state.currentUser.id,
+      operatorName: state.currentUser.name,
+      operatorRole: state.currentUser.role,
+      operatedAt: formatDateTime(new Date()),
+    }
+    const logs = [log, ...state.operationLogs]
+    storage.set(STORAGE_KEYS.OPERATION_LOGS, logs)
+    dispatch({ type: actionTypes.ADD_OPERATION_LOG, payload: log })
+  }
+
   const addArticle = (article) => {
     const category = state.categories.find((c) => c.code === article.category)
     const newArticle = {
@@ -193,6 +218,12 @@ export function AppProvider({ children }) {
     const articles = [newArticle, ...state.articles]
     storage.set(STORAGE_KEYS.ARTICLES, articles)
     dispatch({ type: actionTypes.ADD_ARTICLE, payload: newArticle })
+
+    const action = article.status === 'pending'
+      ? OPERATION_ACTIONS.SUBMIT_REVIEW
+      : OPERATION_ACTIONS.ADD
+    addOperationLog(action, newArticle.title)
+
     return newArticle
   }
 
@@ -209,6 +240,13 @@ export function AppProvider({ children }) {
     const articles = state.articles.map((a) => (a.id === id ? updated : a))
     storage.set(STORAGE_KEYS.ARTICLES, articles)
     dispatch({ type: actionTypes.UPDATE_ARTICLE, payload: updated })
+
+    if (updates.status === 'pending') {
+      addOperationLog(OPERATION_ACTIONS.SUBMIT_REVIEW, updated.title)
+    } else if (updates.status === 'draft') {
+      addOperationLog(OPERATION_ACTIONS.SAVE_DRAFT, updated.title)
+    }
+
     return updated
   }
 
@@ -224,6 +262,7 @@ export function AppProvider({ children }) {
     const articles = state.articles.map((a) => (a.id === id ? updated : a))
     storage.set(STORAGE_KEYS.ARTICLES, articles)
     dispatch({ type: actionTypes.DELETE_ARTICLE, payload: updated })
+    addOperationLog(OPERATION_ACTIONS.DELETE, article.title)
   }
 
   const restoreArticle = (id) => {
@@ -238,6 +277,7 @@ export function AppProvider({ children }) {
     const articles = state.articles.map((a) => (a.id === id ? restored : a))
     storage.set(STORAGE_KEYS.ARTICLES, articles)
     dispatch({ type: actionTypes.RESTORE_ARTICLE, payload: restored })
+    addOperationLog(OPERATION_ACTIONS.RESTORE, article.title)
   }
 
   const permanentDeleteArticle = (id) => {
@@ -277,6 +317,11 @@ export function AppProvider({ children }) {
     })
     storage.set(STORAGE_KEYS.ARTICLES, articles)
     dispatch({ type: actionTypes.REVIEW_ARTICLE, payload: reviewData })
+
+    const action = status === 'published'
+      ? OPERATION_ACTIONS.REVIEW_PASS
+      : OPERATION_ACTIONS.REVIEW_REJECT
+    addOperationLog(action, article.title)
   }
 
   const getArticleById = (id) => {
@@ -347,6 +392,24 @@ export function AppProvider({ children }) {
     dispatch({ type: actionTypes.DELETE_REJECT_TEMPLATE, payload: id })
   }
 
+  const getOperationLogs = (filters = {}) => {
+    let result = [...state.operationLogs]
+
+    if (filters.action) {
+      result = result.filter((log) => log.action === filters.action)
+    }
+    if (filters.keyword) {
+      const keyword = filters.keyword.toLowerCase()
+      result = result.filter(
+        (log) =>
+          log.articleTitle.toLowerCase().includes(keyword) ||
+          log.operatorName.toLowerCase().includes(keyword)
+      )
+    }
+
+    return result
+  }
+
   return (
     <AppContext.Provider
       value={{
@@ -365,6 +428,7 @@ export function AppProvider({ children }) {
         addRejectTemplate,
         updateRejectTemplate,
         deleteRejectTemplate,
+        getOperationLogs,
       }}
     >
       {children}

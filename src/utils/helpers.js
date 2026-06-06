@@ -2,6 +2,42 @@ export const generateId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2)
 }
 
+export const OPERATION_ACTIONS = {
+  ADD: 'add',
+  SAVE_DRAFT: 'save_draft',
+  SUBMIT_REVIEW: 'submit_review',
+  REVIEW_PASS: 'review_pass',
+  REVIEW_REJECT: 'review_reject',
+  DELETE: 'delete',
+  RESTORE: 'restore',
+}
+
+export const getActionText = (action) => {
+  const actionMap = {
+    [OPERATION_ACTIONS.ADD]: '新增信息',
+    [OPERATION_ACTIONS.SAVE_DRAFT]: '保存草稿',
+    [OPERATION_ACTIONS.SUBMIT_REVIEW]: '提交审核',
+    [OPERATION_ACTIONS.REVIEW_PASS]: '审核通过',
+    [OPERATION_ACTIONS.REVIEW_REJECT]: '审核退回',
+    [OPERATION_ACTIONS.DELETE]: '删除',
+    [OPERATION_ACTIONS.RESTORE]: '恢复',
+  }
+  return actionMap[action] || action
+}
+
+export const getActionColor = (action) => {
+  const colorMap = {
+    [OPERATION_ACTIONS.ADD]: 'bg-blue-100 text-blue-700',
+    [OPERATION_ACTIONS.SAVE_DRAFT]: 'bg-gray-100 text-gray-700',
+    [OPERATION_ACTIONS.SUBMIT_REVIEW]: 'bg-orange-100 text-orange-700',
+    [OPERATION_ACTIONS.REVIEW_PASS]: 'bg-green-100 text-green-700',
+    [OPERATION_ACTIONS.REVIEW_REJECT]: 'bg-red-100 text-red-700',
+    [OPERATION_ACTIONS.DELETE]: 'bg-red-100 text-red-700',
+    [OPERATION_ACTIONS.RESTORE]: 'bg-emerald-100 text-emerald-700',
+  }
+  return colorMap[action] || 'bg-gray-100 text-gray-700'
+}
+
 export const formatDate = (dateString) => {
   if (!dateString) return ''
   const date = new Date(dateString)

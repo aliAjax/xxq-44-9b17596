@@ -11,6 +11,7 @@ import ReviewDashboard from './pages/ReviewDashboard'
 import RecycleBin from './pages/RecycleBin'
 import DepartmentStats from './pages/DepartmentStats'
 import PublishCalendar from './pages/PublishCalendar'
+import OperationLog from './pages/OperationLog'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -87,6 +88,15 @@ function App() {
         element={
           <ProtectedRoute allowedRoles={['reviewer']}>
             <ReviewList />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/operation-logs"
+        element={
+          <ProtectedRoute allowedRoles={['editor', 'reviewer']}>
+            <OperationLog />
           </ProtectedRoute>
         }
       />

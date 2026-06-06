@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2, BarChart3, Trash2, PieChart, Calendar } from 'lucide-react'
+import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2, BarChart3, Trash2, PieChart, Calendar, ClipboardList } from 'lucide-react'
 import { useApp } from '../context/useApp'
 
 export default function AdminLayout({ children }) {
@@ -49,6 +49,12 @@ export default function AdminLayout({ children }) {
       label: '审核管理',
       icon: CheckSquare,
       roles: ['reviewer'],
+    },
+    {
+      path: '/admin/operation-logs',
+      label: '操作记录',
+      icon: ClipboardList,
+      roles: ['editor', 'reviewer'],
     },
   ]
 
