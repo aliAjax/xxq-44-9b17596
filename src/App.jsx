@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import ArticleList from './pages/ArticleList'
 import ArticleEdit from './pages/ArticleEdit'
 import ReviewList from './pages/ReviewList'
+import ReviewDashboard from './pages/ReviewDashboard'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -35,6 +36,15 @@ function App() {
         element={
           <ProtectedRoute allowedRoles={['editor']}>
             <ArticleEdit />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/dashboard"
+        element={
+          <ProtectedRoute allowedRoles={['reviewer']}>
+            <ReviewDashboard />
           </ProtectedRoute>
         }
       />

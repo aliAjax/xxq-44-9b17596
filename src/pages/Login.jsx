@@ -13,7 +13,7 @@ export default function Login() {
 
   if (state.currentUser) {
     const redirectPath =
-      state.currentUser.role === 'editor' ? '/admin/articles' : '/admin/review'
+      state.currentUser.role === 'editor' ? '/admin/articles' : '/admin/dashboard'
     return <Navigate to={redirectPath} replace />
   }
 
@@ -29,7 +29,7 @@ export default function Login() {
     const result = login(username, password, role)
     if (result.success) {
       const redirectPath =
-        result.user.role === 'editor' ? '/admin/articles' : '/admin/review'
+        result.user.role === 'editor' ? '/admin/articles' : '/admin/dashboard'
       navigate(redirectPath)
     } else {
       setError(result.message)
