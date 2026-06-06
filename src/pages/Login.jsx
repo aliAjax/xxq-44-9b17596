@@ -1,19 +1,41 @@
 import { useState } from 'react'
-import { useNavigate, Navigate } from 'react-router-dom'
+import { useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { Building2, User, Lock, Shield } from 'lucide-react'
 import { useApp } from '../context/useApp'
 
 export default function Login() {
   const { state, login } = useApp()
   const navigate = useNavigate()
+  const location = useLocation()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('editor')
   const [error, setError] = useState('')
 
+  const from = location.state?.from?.pathname || null
+
+  const getDefaultRedirect = (userRole) => {
+    return userRole === 'editor' ? '/admin/articles' : '/admin/dashboard'
+  }
+
+  const isEditorRoute = (path) => {
+    return path?.startsWith('/admin/articles') || path?.startsWith('/admin/recycle')
+  }
+
+  const isReviewerRoute = (path) => {
+    return path?.startsWith('/admin/dashboard') || path?.startsWith('/admin/review')
+  }
+
   if (state.currentUser) {
-    const redirectPath =
-      state.currentUser.role === 'editor' ? '/admin/articles' : '/admin/dashboard'
+    let redirectPath = getDefaultRedirect(state.currentUser.role)
+    if (from) {
+      const roleMatch =
+        (state.currentUser.role === 'editor' && isEditorRoute(from)) ||
+        (state.currentUser.role === 'reviewer' && isReviewerRoute(from))
+      if (roleMatch) {
+        redirectPath = from
+      }
+    }
     return <Navigate to={redirectPath} replace />
   }
 
@@ -28,9 +50,16 @@ export default function Login() {
 
     const result = login(username, password, role)
     if (result.success) {
-      const redirectPath =
-        result.user.role === 'editor' ? '/admin/articles' : '/admin/dashboard'
-      navigate(redirectPath)
+      let redirectPath = getDefaultRedirect(result.user.role)
+      if (from) {
+        const roleMatch =
+          (result.user.role === 'editor' && isEditorRoute(from)) ||
+          (result.user.role === 'reviewer' && isReviewerRoute(from))
+        if (roleMatch) {
+          redirectPath = from
+        }
+      }
+      navigate(redirectPath, { replace: true })
     } else {
       setError(result.message)
     }
