@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Calendar, Clock, Eye } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, Clock, Edit3 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
@@ -25,7 +25,7 @@ export default function PublishCalendar() {
   const selectedDateArticles = useMemo(() => {
     if (!selectedDate) return []
     const result = getStatusCountByDate(state.articles, selectedDate)
-    return result.articles
+    return result.articles.filter((a) => a.status === 'published' || a.status === 'pending')
   }, [state.articles, selectedDate])
 
   const handlePrevMonth = () => {
@@ -69,6 +69,7 @@ export default function PublishCalendar() {
   const monthStats = useMemo(() => {
     const monthArticles = state.articles.filter((a) => {
       if (a.deleted || !a.publishDate) return false
+      if (a.status !== 'published' && a.status !== 'pending') return false
       const date = new Date(a.publishDate)
       return date.getFullYear() === currentYear && date.getMonth() === currentMonth
     })
@@ -76,7 +77,6 @@ export default function PublishCalendar() {
       total: monthArticles.length,
       published: monthArticles.filter((a) => a.status === 'published').length,
       pending: monthArticles.filter((a) => a.status === 'pending').length,
-      rejected: monthArticles.filter((a) => a.status === 'rejected').length,
     }
   }, [state.articles, currentYear, currentMonth])
 
@@ -165,11 +165,11 @@ export default function PublishCalendar() {
                       >
                         {day.day}
                       </span>
-                      {dayStats.total > 0 && day.isCurrentMonth && (
-                        <span className="text-xs text-gray-400">{dayStats.total}篇</span>
+                      {(dayStats.published + dayStats.pending) > 0 && day.isCurrentMonth && (
+                        <span className="text-xs text-gray-400">{dayStats.published + dayStats.pending}篇</span>
                       )}
                     </div>
-                    {dayStats.total > 0 && day.isCurrentMonth && (
+                    {(dayStats.published + dayStats.pending) > 0 && day.isCurrentMonth && (
                       <div className="mt-1 space-y-0.5">
                         {dayStats.published > 0 && (
                           <div className="text-xs text-green-600">
@@ -224,11 +224,11 @@ export default function PublishCalendar() {
                       <div className="flex items-center gap-2 ml-3">
                         <StatusTag status={article.status} />
                         <button
-                          onClick={() => navigate(`/detail/${article.id}`)}
+                          onClick={() => navigate(`/admin/articles/${article.id}/edit`)}
                           className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-white rounded transition-colors"
-                          title="查看"
+                          title="编辑"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Edit3 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -261,10 +261,6 @@ export default function PublishCalendar() {
                 <span className="text-sm text-gray-600">待审核</span>
                 <span className="text-sm font-medium text-orange-600">{monthStats.pending}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">已退回</span>
-                <span className="text-sm font-medium text-red-600">{monthStats.rejected}</span>
-              </div>
             </div>
           </div>
 
@@ -296,10 +292,10 @@ export default function PublishCalendar() {
                           发布科室：{article.department}
                         </div>
                         <button
-                          onClick={() => navigate(`/detail/${article.id}`)}
+                          onClick={() => navigate(`/admin/articles/${article.id}/edit`)}
                           className="mt-2 text-xs text-primary-600 hover:text-primary-700 font-medium"
                         >
-                          查看详情 →
+                          编辑文章 →
                         </button>
                       </div>
                     ))}

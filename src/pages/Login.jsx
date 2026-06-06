@@ -22,7 +22,8 @@ export default function Login() {
     return (
       path?.startsWith('/admin/articles') ||
       path?.startsWith('/admin/recycle') ||
-      path?.startsWith('/admin/department-stats')
+      path?.startsWith('/admin/department-stats') ||
+      path?.startsWith('/admin/calendar')
     )
   }
 
