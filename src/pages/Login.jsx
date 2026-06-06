@@ -19,7 +19,11 @@ export default function Login() {
   }
 
   const isEditorRoute = (path) => {
-    return path?.startsWith('/admin/articles') || path?.startsWith('/admin/recycle')
+    return (
+      path?.startsWith('/admin/articles') ||
+      path?.startsWith('/admin/recycle') ||
+      path?.startsWith('/admin/department-stats')
+    )
   }
 
   const isReviewerRoute = (path) => {
