@@ -10,9 +10,11 @@ import {
   ChevronRight,
   FileText,
   MessageSquare,
+  BookTemplate,
 } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
+import RejectTemplateManager from '../components/RejectTemplateManager'
 import { useApp } from '../context/useApp'
 
 export default function ReviewDashboard() {
@@ -23,6 +25,7 @@ export default function ReviewDashboard() {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectArticleId, setRejectArticleId] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [showTemplatePanel, setShowTemplatePanel] = useState(false)
 
   const stats = useMemo(() => {
     const pending = state.articles.filter((a) => a.status === 'pending' && !a.deleted).length
@@ -63,7 +66,13 @@ export default function ReviewDashboard() {
   const handleReject = (id) => {
     setRejectArticleId(id)
     setRejectReason('')
+    setShowTemplatePanel(false)
     setShowRejectModal(true)
+  }
+
+  const handleSelectTemplate = (template) => {
+    setRejectReason(template.content)
+    setShowTemplatePanel(false)
   }
 
   const confirmReject = () => {
@@ -75,6 +84,7 @@ export default function ReviewDashboard() {
     setShowRejectModal(false)
     setRejectArticleId(null)
     setRejectReason('')
+    setShowTemplatePanel(false)
     setShowDetailModal(false)
     setDetailArticle(null)
   }
@@ -319,7 +329,7 @@ export default function ReviewDashboard() {
 
       {showRejectModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 m-4 fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 m-4 fade-in">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
                 <XCircle className="w-5 h-5 text-red-600" />
@@ -327,6 +337,26 @@ export default function ReviewDashboard() {
               <h3 className="text-lg font-bold text-gray-900">退回审核</h3>
             </div>
             <p className="text-gray-600 text-sm mb-4">请填写退回原因，以便编辑人员修改完善。</p>
+
+            <div className="mb-3">
+              <button
+                onClick={() => setShowTemplatePanel(!showTemplatePanel)}
+                className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1.5 transition-colors"
+              >
+                <BookTemplate className="w-4 h-4" />
+                {showTemplatePanel ? '收起模板' : '使用模板'}
+              </button>
+            </div>
+
+            {showTemplatePanel && (
+              <div className="mb-4">
+                <RejectTemplateManager
+                  onSelectTemplate={handleSelectTemplate}
+                  onClose={() => setShowTemplatePanel(false)}
+                />
+              </div>
+            )}
+
             <textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
@@ -339,6 +369,7 @@ export default function ReviewDashboard() {
                 onClick={() => {
                   setShowRejectModal(false)
                   setRejectArticleId(null)
+                  setShowTemplatePanel(false)
                 }}
                 className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm"
               >

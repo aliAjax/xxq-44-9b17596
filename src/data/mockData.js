@@ -17,6 +17,14 @@ export const departments = [
   { id: '6', name: '信息中心' },
 ]
 
+export const rejectTemplates = [
+  { id: '1', title: '内容不完整', content: '内容不够具体，缺少关键信息和责任分工，请补充完善后重新提交。', sort: 1 },
+  { id: '2', title: '格式不规范', content: '文档格式不规范，排版混乱，缺少必要的章节划分，请按照标准格式调整后重新提交。', sort: 2 },
+  { id: '3', title: '数据不准确', content: '文中数据存在错误或不准确，请核实相关数据后重新提交。', sort: 3 },
+  { id: '4', title: '表述不清楚', content: '表述不够清晰明了，部分内容存在歧义，请进一步梳理表述逻辑后重新提交。', sort: 4 },
+  { id: '5', title: '缺少附件', content: '缺少必要的附件材料，请补充相关附件后重新提交。', sort: 5 },
+]
+
 export const users = [
   { id: '1', username: 'editor', password: '123456', role: 'editor', name: '张编辑' },
   { id: '2', username: 'reviewer', password: '123456', role: 'reviewer', name: '李审核' },

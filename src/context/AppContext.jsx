@@ -1,6 +1,6 @@
 import { useReducer, useEffect } from 'react'
 import { storage, STORAGE_KEYS } from '../utils/storage'
-import { mockArticles, users, categories, departments } from '../data/mockData'
+import { mockArticles, users, categories, departments, rejectTemplates } from '../data/mockData'
 import { generateId, formatDate, formatDateTime } from '../utils/helpers'
 import { AppContext } from './useApp'
 
@@ -10,6 +10,7 @@ const initialState = {
   users: [],
   categories: [],
   departments: [],
+  rejectTemplates: [],
 }
 
 const actionTypes = {
@@ -22,6 +23,9 @@ const actionTypes = {
   RESTORE_ARTICLE: 'RESTORE_ARTICLE',
   PERMANENT_DELETE_ARTICLE: 'PERMANENT_DELETE_ARTICLE',
   REVIEW_ARTICLE: 'REVIEW_ARTICLE',
+  ADD_REJECT_TEMPLATE: 'ADD_REJECT_TEMPLATE',
+  UPDATE_REJECT_TEMPLATE: 'UPDATE_REJECT_TEMPLATE',
+  DELETE_REJECT_TEMPLATE: 'DELETE_REJECT_TEMPLATE',
 }
 
 function reducer(state, action) {
@@ -33,6 +37,7 @@ function reducer(state, action) {
         users: action.payload.users,
         categories: action.payload.categories,
         departments: action.payload.departments,
+        rejectTemplates: action.payload.rejectTemplates,
         currentUser: action.payload.currentUser,
       }
     case actionTypes.SET_USER:
@@ -93,6 +98,23 @@ function reducer(state, action) {
             : item
         ),
       }
+    case actionTypes.ADD_REJECT_TEMPLATE:
+      return {
+        ...state,
+        rejectTemplates: [...state.rejectTemplates, action.payload].sort((a, b) => a.sort - b.sort),
+      }
+    case actionTypes.UPDATE_REJECT_TEMPLATE:
+      return {
+        ...state,
+        rejectTemplates: state.rejectTemplates
+          .map((t) => (t.id === action.payload.id ? action.payload : t))
+          .sort((a, b) => a.sort - b.sort),
+      }
+    case actionTypes.DELETE_REJECT_TEMPLATE:
+      return {
+        ...state,
+        rejectTemplates: state.rejectTemplates.filter((t) => t.id !== action.payload),
+      }
     default:
       return state
   }
@@ -108,7 +130,13 @@ export function AppProvider({ children }) {
       storage.set(STORAGE_KEYS.USERS, users)
       storage.set(STORAGE_KEYS.CATEGORIES, categories)
       storage.set(STORAGE_KEYS.DEPARTMENTS, departments)
+      storage.set(STORAGE_KEYS.REJECT_TEMPLATES, rejectTemplates)
       storage.set(STORAGE_KEYS.INITIALIZED, true)
+    } else {
+      const existingTemplates = storage.get(STORAGE_KEYS.REJECT_TEMPLATES)
+      if (!existingTemplates || existingTemplates.length === 0) {
+        storage.set(STORAGE_KEYS.REJECT_TEMPLATES, rejectTemplates)
+      }
     }
 
     dispatch({
@@ -118,6 +146,7 @@ export function AppProvider({ children }) {
         users: storage.get(STORAGE_KEYS.USERS) || [],
         categories: storage.get(STORAGE_KEYS.CATEGORIES) || [],
         departments: storage.get(STORAGE_KEYS.DEPARTMENTS) || [],
+        rejectTemplates: storage.get(STORAGE_KEYS.REJECT_TEMPLATES) || [],
         currentUser: storage.get(STORAGE_KEYS.CURRENT_USER),
       },
     })
@@ -280,6 +309,39 @@ export function AppProvider({ children }) {
       .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt))
   }
 
+  const addRejectTemplate = (template) => {
+    const maxSort = state.rejectTemplates.length > 0
+      ? Math.max(...state.rejectTemplates.map((t) => t.sort))
+      : 0
+    const newTemplate = {
+      ...template,
+      id: generateId(),
+      sort: maxSort + 1,
+    }
+    const templates = [...state.rejectTemplates, newTemplate].sort((a, b) => a.sort - b.sort)
+    storage.set(STORAGE_KEYS.REJECT_TEMPLATES, templates)
+    dispatch({ type: actionTypes.ADD_REJECT_TEMPLATE, payload: newTemplate })
+    return newTemplate
+  }
+
+  const updateRejectTemplate = (id, updates) => {
+    const template = state.rejectTemplates.find((t) => t.id === id)
+    if (!template) return null
+    const updated = { ...template, ...updates }
+    const templates = state.rejectTemplates
+      .map((t) => (t.id === id ? updated : t))
+      .sort((a, b) => a.sort - b.sort)
+    storage.set(STORAGE_KEYS.REJECT_TEMPLATES, templates)
+    dispatch({ type: actionTypes.UPDATE_REJECT_TEMPLATE, payload: updated })
+    return updated
+  }
+
+  const deleteRejectTemplate = (id) => {
+    const templates = state.rejectTemplates.filter((t) => t.id !== id)
+    storage.set(STORAGE_KEYS.REJECT_TEMPLATES, templates)
+    dispatch({ type: actionTypes.DELETE_REJECT_TEMPLATE, payload: id })
+  }
+
   return (
     <AppContext.Provider
       value={{
@@ -295,6 +357,9 @@ export function AppProvider({ children }) {
         getArticleById,
         getPublishedArticles,
         getDeletedArticles,
+        addRejectTemplate,
+        updateRejectTemplate,
+        deleteRejectTemplate,
       }}
     >
       {children}
