@@ -1,6 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Home from './pages/Home'
 import Detail from './pages/Detail'
+import CatalogList from './pages/CatalogList'
+import CatalogDetail from './pages/CatalogDetail'
 import Login from './pages/Login'
 import ArticleList from './pages/ArticleList'
 import ArticleEdit from './pages/ArticleEdit'
@@ -14,6 +16,8 @@ function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/detail/:id" element={<Detail />} />
+      <Route path="/catalog" element={<CatalogList />} />
+      <Route path="/catalog/:category" element={<CatalogDetail />} />
       <Route path="/admin/login" element={<Login />} />
 
       <Route

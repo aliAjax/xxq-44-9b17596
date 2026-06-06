@@ -1,7 +1,9 @@
-import { Link } from 'react-router-dom'
-import { Building2, User } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { Building2, User, BookOpen } from 'lucide-react'
 
 export default function FrontendLayout({ children }) {
+  const location = useLocation()
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-primary-800 text-white shadow-lg">
@@ -14,13 +16,38 @@ export default function FrontendLayout({ children }) {
                 <p className="text-xs text-primary-200">Government Information Disclosure System</p>
               </div>
             </Link>
-            <Link
-              to="/admin/login"
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-sm"
-            >
-              <User className="w-4 h-4" />
-              管理入口
-            </Link>
+            <div className="flex items-center gap-3">
+              <nav className="flex items-center gap-1 mr-2">
+                <Link
+                  to="/"
+                  className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+                    location.pathname === '/'
+                      ? 'bg-white/20 text-white font-medium'
+                      : 'hover:bg-white/10 text-primary-100'
+                  }`}
+                >
+                  首页
+                </Link>
+                <Link
+                  to="/catalog"
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm transition-colors ${
+                    location.pathname.startsWith('/catalog')
+                      ? 'bg-white/20 text-white font-medium'
+                      : 'hover:bg-white/10 text-primary-100'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  公开目录
+                </Link>
+              </nav>
+              <Link
+                to="/admin/login"
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-sm"
+              >
+                <User className="w-4 h-4" />
+                管理入口
+              </Link>
+            </div>
           </div>
         </div>
       </header>

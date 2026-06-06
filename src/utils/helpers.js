@@ -61,3 +61,57 @@ export const getRoleText = (role) => {
   }
   return roleMap[role] || role
 }
+
+export const getPublishedArticles = (articles) => {
+  return articles.filter((a) => a.status === 'published' && !a.deleted)
+}
+
+export const countByCategory = (articles, categories) => {
+  const published = getPublishedArticles(articles)
+  return categories.map((cat) => ({
+    ...cat,
+    count: published.filter((a) => a.category === cat.code).length,
+  }))
+}
+
+export const groupByMonth = (articles) => {
+  const published = getPublishedArticles(articles)
+  const groups = {}
+
+  published.forEach((article) => {
+    if (!article.publishDate) return
+    const date = new Date(article.publishDate)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const key = `${year}-${month}`
+
+    if (!groups[key]) {
+      groups[key] = {
+        year,
+        month,
+        label: `${year}年${month}月`,
+        articles: [],
+      }
+    }
+    groups[key].articles.push(article)
+  })
+
+  const result = Object.values(groups).sort((a, b) => {
+    if (a.year !== b.year) return b.year - a.year
+    return b.month - a.month
+  })
+
+  result.forEach((group) => {
+    group.articles.sort((a, b) => new Date(b.publishDate) - new Date(a.publishDate))
+  })
+
+  return result
+}
+
+export const getMonthLabel = (dateString) => {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  return `${year}年${month}月`
+}
