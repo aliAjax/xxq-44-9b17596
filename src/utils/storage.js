@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   CATEGORIES: 'gov_categories',
   DEPARTMENTS: 'gov_departments',
   REJECT_TEMPLATES: 'gov_reject_templates',
+  REJECT_TEMPLATES_INITIALIZED: 'gov_reject_templates_initialized',
   INITIALIZED: 'gov_initialized',
 }
 

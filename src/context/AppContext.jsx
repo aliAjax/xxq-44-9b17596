@@ -131,11 +131,16 @@ export function AppProvider({ children }) {
       storage.set(STORAGE_KEYS.CATEGORIES, categories)
       storage.set(STORAGE_KEYS.DEPARTMENTS, departments)
       storage.set(STORAGE_KEYS.REJECT_TEMPLATES, rejectTemplates)
+      storage.set(STORAGE_KEYS.REJECT_TEMPLATES_INITIALIZED, true)
       storage.set(STORAGE_KEYS.INITIALIZED, true)
     } else {
-      const existingTemplates = storage.get(STORAGE_KEYS.REJECT_TEMPLATES)
-      if (!existingTemplates || existingTemplates.length === 0) {
-        storage.set(STORAGE_KEYS.REJECT_TEMPLATES, rejectTemplates)
+      const templatesInitialized = storage.get(STORAGE_KEYS.REJECT_TEMPLATES_INITIALIZED)
+      if (!templatesInitialized) {
+        const existingTemplates = storage.get(STORAGE_KEYS.REJECT_TEMPLATES)
+        if (!existingTemplates) {
+          storage.set(STORAGE_KEYS.REJECT_TEMPLATES, rejectTemplates)
+        }
+        storage.set(STORAGE_KEYS.REJECT_TEMPLATES_INITIALIZED, true)
       }
     }
 

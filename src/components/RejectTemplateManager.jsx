@@ -11,18 +11,34 @@ export default function RejectTemplateManager({ onSelectTemplate, onClose }) {
   const [newTitle, setNewTitle] = useState('')
   const [newContent, setNewContent] = useState('')
 
+  const resetEditState = () => {
+    setEditingId(null)
+    setEditTitle('')
+    setEditContent('')
+  }
+
+  const resetAddState = () => {
+    setNewTitle('')
+    setNewContent('')
+    setIsAdding(false)
+  }
+
   const handleAdd = () => {
     if (!newTitle.trim() || !newContent.trim()) {
       alert('请填写模板标题和内容')
       return
     }
     addRejectTemplate({ title: newTitle.trim(), content: newContent.trim() })
-    setNewTitle('')
-    setNewContent('')
-    setIsAdding(false)
+    resetAddState()
+  }
+
+  const handleStartAdd = () => {
+    resetEditState()
+    setIsAdding(true)
   }
 
   const handleEdit = (template) => {
+    resetAddState()
     setEditingId(template.id)
     setEditTitle(template.title)
     setEditContent(template.content)
@@ -34,20 +50,19 @@ export default function RejectTemplateManager({ onSelectTemplate, onClose }) {
       return
     }
     updateRejectTemplate(editingId, { title: editTitle.trim(), content: editContent.trim() })
-    setEditingId(null)
-    setEditTitle('')
-    setEditContent('')
+    resetEditState()
   }
 
   const handleCancelEdit = () => {
-    setEditingId(null)
-    setEditTitle('')
-    setEditContent('')
+    resetEditState()
   }
 
   const handleDelete = (id) => {
     if (window.confirm('确定要删除这个模板吗？')) {
       deleteRejectTemplate(id)
+      if (editingId === id) {
+        resetEditState()
+      }
     }
   }
 
@@ -63,7 +78,8 @@ export default function RejectTemplateManager({ onSelectTemplate, onClose }) {
         <h4 className="text-sm font-medium text-gray-700">常用退回原因模板</h4>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setIsAdding(true)}
+            type="button"
+            onClick={handleStartAdd}
             className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -71,6 +87,7 @@ export default function RejectTemplateManager({ onSelectTemplate, onClose }) {
           </button>
           {onClose && (
             <button
+              type="button"
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 transition-colors"
             >
@@ -104,16 +121,14 @@ export default function RejectTemplateManager({ onSelectTemplate, onClose }) {
           </div>
           <div className="flex justify-end gap-2">
             <button
-              onClick={() => {
-                setIsAdding(false)
-                setNewTitle('')
-                setNewContent('')
-              }}
+              type="button"
+              onClick={resetAddState}
               className="px-3 py-1 text-xs border border-gray-300 text-gray-600 rounded hover:bg-gray-50 transition-colors"
             >
               取消
             </button>
             <button
+              type="button"
               onClick={handleAdd}
               className="px-3 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors flex items-center gap-1"
             >
@@ -151,12 +166,14 @@ export default function RejectTemplateManager({ onSelectTemplate, onClose }) {
                   </div>
                   <div className="flex justify-end gap-2">
                     <button
+                      type="button"
                       onClick={handleCancelEdit}
                       className="px-2 py-1 text-xs border border-gray-300 text-gray-600 rounded hover:bg-gray-50 transition-colors"
                     >
                       取消
                     </button>
                     <button
+                      type="button"
                       onClick={handleSaveEdit}
                       className="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors flex items-center gap-1"
                     >
@@ -177,6 +194,7 @@ export default function RejectTemplateManager({ onSelectTemplate, onClose }) {
                     <div className="flex items-center gap-1 shrink-0">
                       {onSelectTemplate && (
                         <button
+                          type="button"
                           onClick={() => handleSelect(template)}
                           className="px-2 py-1 text-xs text-primary-600 hover:bg-primary-50 rounded transition-colors"
                         >
@@ -184,6 +202,7 @@ export default function RejectTemplateManager({ onSelectTemplate, onClose }) {
                         </button>
                       )}
                       <button
+                        type="button"
                         onClick={() => handleEdit(template)}
                         className="p-1 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
                         title="编辑"
@@ -191,6 +210,7 @@ export default function RejectTemplateManager({ onSelectTemplate, onClose }) {
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDelete(template.id)}
                         className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                         title="删除"
@@ -205,7 +225,7 @@ export default function RejectTemplateManager({ onSelectTemplate, onClose }) {
           ))
         ) : (
           <div className="text-center py-6 text-gray-400 text-sm">
-            暂无模板，点击上方"新增模板"添加
+            暂无模板，点击上方「新增模板」添加
           </div>
         )}
       </div>
