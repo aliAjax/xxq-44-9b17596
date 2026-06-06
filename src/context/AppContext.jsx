@@ -221,7 +221,7 @@ export function AppProvider({ children }) {
 
     const action = article.status === 'pending'
       ? OPERATION_ACTIONS.SUBMIT_REVIEW
-      : OPERATION_ACTIONS.ADD
+      : OPERATION_ACTIONS.SAVE_DRAFT
     addOperationLog(action, newArticle.title)
 
     return newArticle

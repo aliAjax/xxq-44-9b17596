@@ -23,12 +23,17 @@ export default function Login() {
       path?.startsWith('/admin/articles') ||
       path?.startsWith('/admin/recycle') ||
       path?.startsWith('/admin/department-stats') ||
-      path?.startsWith('/admin/calendar')
+      path?.startsWith('/admin/calendar') ||
+      path?.startsWith('/admin/operation-logs')
     )
   }
 
   const isReviewerRoute = (path) => {
-    return path?.startsWith('/admin/dashboard') || path?.startsWith('/admin/review')
+    return (
+      path?.startsWith('/admin/dashboard') ||
+      path?.startsWith('/admin/review') ||
+      path?.startsWith('/admin/operation-logs')
+    )
   }
 
   if (state.currentUser) {
