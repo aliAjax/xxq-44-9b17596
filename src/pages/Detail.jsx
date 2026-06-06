@@ -8,7 +8,7 @@ export default function Detail() {
   const { getArticleById } = useApp()
   const article = getArticleById(id)
 
-  if (!article || article.status !== 'published') {
+  if (!article || article.status !== 'published' || article.deleted) {
     return (
       <FrontendLayout>
         <div className="bg-white rounded-lg p-12 text-center shadow-sm">

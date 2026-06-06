@@ -18,7 +18,7 @@ export default function Home() {
   const [showFilter, setShowFilter] = useState(false)
 
   const articles = useMemo(() => {
-    let result = state.articles.filter((a) => a.status === 'published')
+    let result = state.articles.filter((a) => a.status === 'published' && !a.deleted)
 
     if (category) {
       result = result.filter((a) => a.category === category)

@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Edit2, Trash2, Send, Eye } from 'lucide-react'
+import { Search, RotateCcw, Trash2, Eye } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
@@ -8,55 +7,50 @@ import { useApp } from '../context/useApp'
 
 const PAGE_SIZE = 10
 
-export default function ArticleList() {
-  const { state, deleteArticle, updateArticle } = useApp()
-  const navigate = useNavigate()
+export default function RecycleBin() {
+  const { state, restoreArticle, permanentDeleteArticle } = useApp()
   const [currentPage, setCurrentPage] = useState(1)
   const [keyword, setKeyword] = useState('')
-  const [status, setStatus] = useState('')
   const [category, setCategory] = useState('')
 
-  const filteredArticles = useMemo(() => {
-    let result = state.articles.filter((a) => !a.deleted)
+  const deletedArticles = useMemo(() => {
+    let result = state.articles.filter((a) => a.deleted)
 
     if (keyword) {
       const kw = keyword.toLowerCase()
       result = result.filter((a) => a.title.toLowerCase().includes(kw))
     }
-    if (status) {
-      result = result.filter((a) => a.status === status)
-    }
     if (category) {
       result = result.filter((a) => a.category === category)
     }
 
-    result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    result.sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt))
     return result
-  }, [state.articles, keyword, status, category])
+  }, [state.articles, keyword, category])
 
-  const totalPages = Math.ceil(filteredArticles.length / PAGE_SIZE)
-  const paginatedArticles = filteredArticles.slice(
+  const totalPages = Math.ceil(deletedArticles.length / PAGE_SIZE)
+  const paginatedArticles = deletedArticles.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE
   )
 
-  const handleDelete = (id) => {
-    if (window.confirm('确定要删除这条信息吗？')) {
-      deleteArticle(id)
+  const handleRestore = (id) => {
+    if (window.confirm('确定要恢复这条信息吗？')) {
+      restoreArticle(id)
     }
   }
 
-  const handleSubmitReview = (id) => {
-    if (window.confirm('确定要提交审核吗？')) {
-      updateArticle(id, { status: 'pending' })
+  const handlePermanentDelete = (id) => {
+    if (window.confirm('确定要彻底删除这条信息吗？删除后无法恢复！')) {
+      permanentDeleteArticle(id)
     }
   }
 
   return (
     <AdminLayout>
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-gray-800">信息管理</h2>
-        <p className="text-gray-500 text-sm mt-1">管理您发布的政务公开信息</p>
+        <h2 className="text-xl font-bold text-gray-800">回收站</h2>
+        <p className="text-gray-500 text-sm mt-1">管理已删除的政务公开信息，可恢复或彻底删除</p>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm">
@@ -76,20 +70,6 @@ export default function ArticleList() {
               />
             </div>
             <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value)
-                setCurrentPage(1)
-              }}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">全部状态</option>
-              <option value="draft">草稿</option>
-              <option value="pending">待审核</option>
-              <option value="published">已发布</option>
-              <option value="rejected">已退回</option>
-            </select>
-            <select
               value={category}
               onChange={(e) => {
                 setCategory(e.target.value)
@@ -105,13 +85,9 @@ export default function ArticleList() {
               ))}
             </select>
           </div>
-          <button
-            onClick={() => navigate('/admin/articles/new')}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-800 text-white rounded-lg hover:bg-primary-900 transition-colors text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            新增信息
-          </button>
+          <div className="text-sm text-gray-500">
+            共 <span className="font-medium text-gray-700">{deletedArticles.length}</span> 条已删除信息
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -127,8 +103,11 @@ export default function ArticleList() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
                   状态
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-32">
-                  创建时间
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-36">
+                  删除时间
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
+                  删除人
                 </th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-40">
                   操作
@@ -159,41 +138,31 @@ export default function ArticleList() {
                       <StatusTag status={article.status} />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm text-gray-500">{article.createdAt}</span>
+                      <span className="text-sm text-gray-500">{article.deletedAt}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-sm text-gray-500">{article.deletedBy}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => navigate(`/detail/${article.id}`)}
+                          onClick={() => window.open(`/detail/${article.id}`, '_blank')}
                           className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
                           title="查看"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        {(article.status === 'draft' || article.status === 'rejected') && (
-                          <button
-                            onClick={() =>
-                              navigate(`/admin/articles/${article.id}/edit`)
-                            }
-                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
-                            title="编辑"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        )}
-                        {article.status === 'draft' && (
-                          <button
-                            onClick={() => handleSubmitReview(article.id)}
-                            className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                            title="提交审核"
-                          >
-                            <Send className="w-4 h-4" />
-                          </button>
-                        )}
                         <button
-                          onClick={() => handleDelete(article.id)}
+                          onClick={() => handleRestore(article.id)}
+                          className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                          title="恢复"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handlePermanentDelete(article.id)}
                           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="删除"
+                          title="彻底删除"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -203,8 +172,8 @@ export default function ArticleList() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="px-4 py-12 text-center text-gray-400">
-                    暂无数据
+                  <td colSpan="6" className="px-4 py-12 text-center text-gray-400">
+                    回收站为空
                   </td>
                 </tr>
               )}

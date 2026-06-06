@@ -1,7 +1,7 @@
 import { useReducer, useEffect } from 'react'
 import { storage, STORAGE_KEYS } from '../utils/storage'
 import { mockArticles, users, categories, departments } from '../data/mockData'
-import { generateId, formatDate } from '../utils/helpers'
+import { generateId, formatDate, formatDateTime } from '../utils/helpers'
 import { AppContext } from './useApp'
 
 const initialState = {
@@ -19,6 +19,8 @@ const actionTypes = {
   ADD_ARTICLE: 'ADD_ARTICLE',
   UPDATE_ARTICLE: 'UPDATE_ARTICLE',
   DELETE_ARTICLE: 'DELETE_ARTICLE',
+  RESTORE_ARTICLE: 'RESTORE_ARTICLE',
+  PERMANENT_DELETE_ARTICLE: 'PERMANENT_DELETE_ARTICLE',
   REVIEW_ARTICLE: 'REVIEW_ARTICLE',
 }
 
@@ -56,6 +58,20 @@ function reducer(state, action) {
         ),
       }
     case actionTypes.DELETE_ARTICLE:
+      return {
+        ...state,
+        articles: state.articles.map((item) =>
+          item.id === action.payload.id ? action.payload : item
+        ),
+      }
+    case actionTypes.RESTORE_ARTICLE:
+      return {
+        ...state,
+        articles: state.articles.map((item) =>
+          item.id === action.payload.id ? action.payload : item
+        ),
+      }
+    case actionTypes.PERMANENT_DELETE_ARTICLE:
       return {
         ...state,
         articles: state.articles.filter((item) => item.id !== action.payload),
@@ -163,9 +179,37 @@ export function AppProvider({ children }) {
   }
 
   const deleteArticle = (id) => {
+    const article = state.articles.find((a) => a.id === id)
+    if (!article) return null
+    const updated = {
+      ...article,
+      deleted: true,
+      deletedAt: formatDateTime(new Date()),
+      deletedBy: state.currentUser?.name || '',
+    }
+    const articles = state.articles.map((a) => (a.id === id ? updated : a))
+    storage.set(STORAGE_KEYS.ARTICLES, articles)
+    dispatch({ type: actionTypes.DELETE_ARTICLE, payload: updated })
+  }
+
+  const restoreArticle = (id) => {
+    const article = state.articles.find((a) => a.id === id)
+    if (!article) return null
+    const restored = {
+      ...article,
+      deleted: false,
+      deletedAt: '',
+      deletedBy: '',
+    }
+    const articles = state.articles.map((a) => (a.id === id ? restored : a))
+    storage.set(STORAGE_KEYS.ARTICLES, articles)
+    dispatch({ type: actionTypes.RESTORE_ARTICLE, payload: restored })
+  }
+
+  const permanentDeleteArticle = (id) => {
     const articles = state.articles.filter((a) => a.id !== id)
     storage.set(STORAGE_KEYS.ARTICLES, articles)
-    dispatch({ type: actionTypes.DELETE_ARTICLE, payload: id })
+    dispatch({ type: actionTypes.PERMANENT_DELETE_ARTICLE, payload: id })
   }
 
   const reviewArticle = (id, status, rejectReason = '') => {
@@ -206,7 +250,7 @@ export function AppProvider({ children }) {
   }
 
   const getPublishedArticles = (filters = {}) => {
-    let result = state.articles.filter((a) => a.status === 'published')
+    let result = state.articles.filter((a) => a.status === 'published' && !a.deleted)
 
     if (filters.category) {
       result = result.filter((a) => a.category === filters.category)
@@ -230,6 +274,12 @@ export function AppProvider({ children }) {
     return result
   }
 
+  const getDeletedArticles = () => {
+    return state.articles
+      .filter((a) => a.deleted)
+      .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt))
+  }
+
   return (
     <AppContext.Provider
       value={{
@@ -239,9 +289,12 @@ export function AppProvider({ children }) {
         addArticle,
         updateArticle,
         deleteArticle,
+        restoreArticle,
+        permanentDeleteArticle,
         reviewArticle,
         getArticleById,
         getPublishedArticles,
+        getDeletedArticles,
       }}
     >
       {children}

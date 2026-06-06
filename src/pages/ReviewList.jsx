@@ -19,7 +19,7 @@ export default function ReviewList() {
   const [detailArticle, setDetailArticle] = useState(null)
 
   const filteredArticles = useMemo(() => {
-    let result = [...state.articles]
+    let result = state.articles.filter((a) => !a.deleted)
 
     if (activeTab === 'pending') {
       result = result.filter((a) => a.status === 'pending')
@@ -99,7 +99,7 @@ export default function ReviewList() {
             >
               待审核
               <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full">
-                {state.articles.filter((a) => a.status === 'pending').length}
+                {state.articles.filter((a) => a.status === 'pending' && !a.deleted).length}
               </span>
             </button>
             <button

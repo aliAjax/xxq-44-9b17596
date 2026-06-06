@@ -25,14 +25,14 @@ export default function ReviewDashboard() {
   const [rejectReason, setRejectReason] = useState('')
 
   const stats = useMemo(() => {
-    const pending = state.articles.filter((a) => a.status === 'pending').length
-    const published = state.articles.filter((a) => a.status === 'published').length
-    const rejected = state.articles.filter((a) => a.status === 'rejected').length
+    const pending = state.articles.filter((a) => a.status === 'pending' && !a.deleted).length
+    const published = state.articles.filter((a) => a.status === 'published' && !a.deleted).length
+    const rejected = state.articles.filter((a) => a.status === 'rejected' && !a.deleted).length
     return { pending, published, rejected }
   }, [state.articles])
 
   const categoryStats = useMemo(() => {
-    const pendingArticles = state.articles.filter((a) => a.status === 'pending')
+    const pendingArticles = state.articles.filter((a) => a.status === 'pending' && !a.deleted)
     const stats = state.categories.map((cat) => {
       const count = pendingArticles.filter((a) => a.category === cat.code).length
       return { ...cat, count }
@@ -42,7 +42,7 @@ export default function ReviewDashboard() {
 
   const recentPending = useMemo(() => {
     return state.articles
-      .filter((a) => a.status === 'pending')
+      .filter((a) => a.status === 'pending' && !a.deleted)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 5)
   }, [state.articles])
