@@ -115,3 +115,78 @@ export const getMonthLabel = (dateString) => {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   return `${year}年${month}月`
 }
+
+export const groupByDate = (articles) => {
+  const groups = {}
+  const validArticles = articles.filter((a) => !a.deleted)
+
+  validArticles.forEach((article) => {
+    if (!article.publishDate) return
+    const dateStr = formatDate(article.publishDate)
+    if (!groups[dateStr]) {
+      groups[dateStr] = []
+    }
+    groups[dateStr].push(article)
+  })
+
+  return groups
+}
+
+export const getPendingWithoutDate = (articles) => {
+  return articles.filter((a) => !a.deleted && a.status === 'pending' && !a.publishDate)
+}
+
+export const getCalendarDays = (year, month) => {
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  const daysInMonth = lastDay.getDate()
+  const startDayOfWeek = firstDay.getDay()
+
+  const days = []
+
+  const prevMonthLastDay = new Date(year, month, 0).getDate()
+  for (let i = startDayOfWeek - 1; i >= 0; i--) {
+    const day = prevMonthLastDay - i
+    const date = new Date(year, month - 1, day)
+    days.push({
+      date: formatDate(date),
+      day,
+      isCurrentMonth: false,
+    })
+  }
+
+  for (let i = 1; i <= daysInMonth; i++) {
+    const date = new Date(year, month, i)
+    days.push({
+      date: formatDate(date),
+      day: i,
+      isCurrentMonth: true,
+    })
+  }
+
+  const remainingDays = 42 - days.length
+  for (let i = 1; i <= remainingDays; i++) {
+    const date = new Date(year, month + 1, i)
+    days.push({
+      date: formatDate(date),
+      day: i,
+      isCurrentMonth: false,
+    })
+  }
+
+  return days
+}
+
+export const getStatusCountByDate = (articles, dateStr) => {
+  const dayArticles = articles.filter(
+    (a) => !a.deleted && a.publishDate && formatDate(a.publishDate) === dateStr
+  )
+  return {
+    total: dayArticles.length,
+    published: dayArticles.filter((a) => a.status === 'published').length,
+    pending: dayArticles.filter((a) => a.status === 'pending').length,
+    rejected: dayArticles.filter((a) => a.status === 'rejected').length,
+    draft: dayArticles.filter((a) => a.status === 'draft').length,
+    articles: dayArticles,
+  }
+}

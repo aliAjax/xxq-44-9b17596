@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2, BarChart3, Trash2, PieChart } from 'lucide-react'
+import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2, BarChart3, Trash2, PieChart, Calendar } from 'lucide-react'
 import { useApp } from '../context/useApp'
 
 export default function AdminLayout({ children }) {
@@ -30,6 +30,12 @@ export default function AdminLayout({ children }) {
       path: '/admin/department-stats',
       label: '科室公开统计',
       icon: PieChart,
+      roles: ['editor'],
+    },
+    {
+      path: '/admin/calendar',
+      label: '发布日历',
+      icon: Calendar,
       roles: ['editor'],
     },
     {

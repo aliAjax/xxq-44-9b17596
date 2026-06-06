@@ -10,6 +10,7 @@ import ReviewList from './pages/ReviewList'
 import ReviewDashboard from './pages/ReviewDashboard'
 import RecycleBin from './pages/RecycleBin'
 import DepartmentStats from './pages/DepartmentStats'
+import PublishCalendar from './pages/PublishCalendar'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -60,6 +61,14 @@ function App() {
         element={
           <ProtectedRoute allowedRoles={['editor']}>
             <DepartmentStats />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/calendar"
+        element={
+          <ProtectedRoute allowedRoles={['editor']}>
+            <PublishCalendar />
           </ProtectedRoute>
         }
       />
