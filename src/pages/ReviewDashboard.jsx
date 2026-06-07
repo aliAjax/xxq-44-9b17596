@@ -19,7 +19,7 @@ import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import RejectTemplateManager from '../components/RejectTemplateManager'
 import { useApp } from '../context/useApp'
-import { getReviewStageText, getReviewStageColor, isArticleClaimed, isArticleClaimedByUser, getActiveCategories } from '../utils/helpers'
+import { getReviewStageText, getReviewStageColor, isArticleClaimed, isArticleClaimedByUser } from '../utils/helpers'
 
 export default function ReviewDashboard() {
   const { state, reviewArticle, isTwoLevelReview, claimArticle, releaseArticle } = useApp()

@@ -21,7 +21,7 @@ export default function DepartmentStats() {
 
     state.departments.forEach((dept) => {
       const deptArticles = state.articles.filter(
-        (a) => a.department === dept.name && !a.deleted
+        (a) => !a.deleted && (a.departmentId === dept.id || (!a.departmentId && a.department === dept.name))
       )
 
       const publishedCount = deptArticles.filter((a) => a.status === 'published').length
@@ -55,7 +55,7 @@ export default function DepartmentStats() {
   const selectedDeptArticles = useMemo(() => {
     if (!selectedDepartment) return []
     return state.articles
-      .filter((a) => a.department === selectedDepartment && !a.deleted)
+      .filter((a) => !a.deleted && (a.departmentId === selectedDepartment || (!a.departmentId && a.department === selectedDepartment)))
       .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
   }, [state.articles, selectedDepartment])
 
@@ -65,11 +65,11 @@ export default function DepartmentStats() {
     articlePage * PAGE_SIZE
   )
 
-  const handleDepartmentClick = (deptName) => {
-    if (selectedDepartment === deptName) {
+  const handleDepartmentClick = (deptId) => {
+    if (selectedDepartment === deptId) {
       setSelectedDepartment(null)
     } else {
-      setSelectedDepartment(deptName)
+      setSelectedDepartment(deptId)
       setArticlePage(1)
     }
   }
@@ -181,15 +181,15 @@ export default function DepartmentStats() {
                   <>
                     <tr
                       key={dept.id}
-                      onClick={() => handleDepartmentClick(dept.name)}
+                      onClick={() => handleDepartmentClick(dept.id)}
                       className={`border-b border-gray-50 cursor-pointer transition-colors ${
-                        selectedDepartment === dept.name
+                        selectedDepartment === dept.id
                           ? 'bg-primary-50'
                           : 'hover:bg-gray-50'
                       }`}
                     >
                       <td className="px-4 py-3">
-                        {selectedDepartment === dept.name ? (
+                        {selectedDepartment === dept.id ? (
                           <ChevronUp className="w-4 h-4 text-primary-600" />
                         ) : (
                           <ChevronDown className="w-4 h-4 text-gray-400" />

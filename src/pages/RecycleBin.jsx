@@ -4,7 +4,6 @@ import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
 import { useApp } from '../context/useApp'
-import { getActiveCategories } from '../utils/helpers'
 
 const PAGE_SIZE = 10
 

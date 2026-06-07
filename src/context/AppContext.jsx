@@ -44,6 +44,7 @@ const actionTypes = {
   UPDATE_REJECT_TEMPLATE: 'UPDATE_REJECT_TEMPLATE',
   DELETE_REJECT_TEMPLATE: 'DELETE_REJECT_TEMPLATE',
   ADD_OPERATION_LOG: 'ADD_OPERATION_LOG',
+  ADD_REVIEW_FLOW_CONFIG: 'ADD_REVIEW_FLOW_CONFIG',
   UPDATE_REVIEW_FLOW_CONFIG: 'UPDATE_REVIEW_FLOW_CONFIG',
   INIT_REVIEW_FLOW_CONFIGS: 'INIT_REVIEW_FLOW_CONFIGS',
   ADD_ARTICLE_VERSION: 'ADD_ARTICLE_VERSION',
@@ -204,6 +205,11 @@ function reducer(state, action) {
       return {
         ...state,
         reviewFlowConfigs: action.payload,
+      }
+    case actionTypes.ADD_REVIEW_FLOW_CONFIG:
+      return {
+        ...state,
+        reviewFlowConfigs: [...state.reviewFlowConfigs, action.payload],
       }
     case actionTypes.UPDATE_REVIEW_FLOW_CONFIG:
       return {
@@ -418,9 +424,10 @@ export function AppProvider({ children }) {
     return newConfigs
   }
 
-  const migrateArticles = (articles, flowConfigs) => {
+  const migrateArticles = (articles, flowConfigs, departmentList) => {
     if (!articles || articles.length === 0) return []
     const configMap = new Map((flowConfigs || []).map((c) => [c.categoryCode, c]))
+    const deptMap = new Map((departmentList || []).map((d) => [d.name, d.id]))
 
     return articles.map((article) => {
       const migrated = { ...article }
@@ -435,6 +442,9 @@ export function AppProvider({ children }) {
       if (migrated.claimantId === undefined) migrated.claimantId = ''
       if (migrated.claimantName === undefined) migrated.claimantName = ''
       if (migrated.claimedAt === undefined) migrated.claimedAt = ''
+      if (migrated.departmentId === undefined) {
+        migrated.departmentId = deptMap.get(article.department) || ''
+      }
 
       const config = configMap.get(article.category)
       const needTwoLevel = config ? config.requireTwoLevel : false
@@ -561,7 +571,7 @@ export function AppProvider({ children }) {
       }
 
       const existingArticles = storage.get(STORAGE_KEYS.ARTICLES) || []
-      const migratedArticles = migrateArticles(existingArticles, migratedFlowConfigs)
+      const migratedArticles = migrateArticles(existingArticles, migratedFlowConfigs, migratedDepartments)
       storage.set(STORAGE_KEYS.ARTICLES, migratedArticles)
 
       const versionsInitialized = storage.get(STORAGE_KEYS.VERSIONS_INITIALIZED)
@@ -580,7 +590,7 @@ export function AppProvider({ children }) {
     const loadedUsers = storage.get(STORAGE_KEYS.USERS) || []
     const finalUsers = migrateUsers(loadedUsers)
     const loadedArticles = storage.get(STORAGE_KEYS.ARTICLES) || []
-    const finalArticles = migrateArticles(loadedArticles, finalFlowConfigs)
+    const finalArticles = migrateArticles(loadedArticles, finalFlowConfigs, loadedDepartments)
     const loadedVersions = storage.get(STORAGE_KEYS.ARTICLE_VERSIONS) || []
     const finalVersions = migrateArticleVersions(loadedVersions, finalArticles)
 
@@ -675,6 +685,7 @@ export function AppProvider({ children }) {
       category: article.category,
       categoryName: article.categoryName,
       department: article.department,
+      departmentId: article.departmentId || '',
       publishDate: article.publishDate,
       content: article.content,
       attachmentUrl: article.attachmentUrl,
@@ -696,12 +707,14 @@ export function AppProvider({ children }) {
 
   const addArticle = (article) => {
     const category = state.categories.find((c) => c.code === article.category)
+    const department = state.departments.find((d) => d.name === article.department)
     const needTwoLevel = isTwoLevelReview(article.category)
     const reviewStage = article.status === 'pending' && needTwoLevel ? 'first_pending' : ''
     const newArticle = {
       ...article,
       id: generateId(),
       categoryName: category ? category.name : '',
+      departmentId: department ? department.id : '',
       authorId: state.currentUser.id,
       authorName: state.currentUser.name,
       createdAt: formatDate(new Date()),
@@ -743,12 +756,14 @@ export function AppProvider({ children }) {
     const now = formatDate(new Date())
     const newArticles = articles.map((article) => {
       const category = state.categories.find((c) => c.code === article.category)
+      const department = state.departments.find((d) => d.name === article.department)
       const needTwoLevel = isTwoLevelReview(article.category)
       const reviewStage = article.status === 'pending' && needTwoLevel ? 'first_pending' : ''
       return {
         ...article,
         id: generateId(),
         categoryName: category ? category.name : '',
+        departmentId: department ? department.id : '',
         authorId: state.currentUser.id,
         authorName: state.currentUser.name,
         createdAt: now,
@@ -784,6 +799,8 @@ export function AppProvider({ children }) {
     const article = state.articles.find((a) => a.id === id)
     if (!article) return null
     const category = state.categories.find((c) => c.code === (updates.category || article.category))
+    const deptName = updates.department || article.department
+    const department = state.departments.find((d) => d.name === deptName)
     const needTwoLevel = isTwoLevelReview(updates.category || article.category)
     let reviewStage = article.reviewStage
     let claimantId = article.claimantId
@@ -804,6 +821,7 @@ export function AppProvider({ children }) {
       ...article,
       ...updates,
       categoryName: category ? category.name : article.categoryName,
+      departmentId: department ? department.id : article.departmentId,
       updatedAt: formatDate(new Date()),
       reviewStage,
       claimantId,
@@ -1411,7 +1429,7 @@ export function AppProvider({ children }) {
       }
       const allConfigs = [...existingConfigs, newConfig]
       storage.set(STORAGE_KEYS.REVIEW_FLOW_CONFIGS, allConfigs)
-      dispatch({ type: actionTypes.UPDATE_REVIEW_FLOW_CONFIG, payload: newConfig })
+      dispatch({ type: actionTypes.ADD_REVIEW_FLOW_CONFIG, payload: newConfig })
     }
 
     addOperationLog(OPERATION_ACTIONS.ADD_CATEGORY, newCategory.name)
@@ -1486,12 +1504,14 @@ export function AppProvider({ children }) {
     const now = formatDate(new Date())
     const newArticles = articles.map((article) => {
       const category = state.categories.find((c) => c.code === article.category)
+      const department = state.departments.find((d) => d.name === article.department)
       const needTwoLevel = isTwoLevelReview(article.category)
       const reviewStage = article.status === 'pending' && needTwoLevel ? 'first_pending' : ''
       return {
         ...article,
         id: generateId(),
         categoryName: category ? category.name : '',
+        departmentId: department ? department.id : '',
         authorId: state.currentUser.id,
         authorName: state.currentUser.name,
         createdAt: now,

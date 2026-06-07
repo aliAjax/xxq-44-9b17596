@@ -21,17 +21,6 @@ import { useApp } from '../context/useApp'
 import { storage, STORAGE_KEYS } from '../utils/storage'
 import { getValidationRules, getContentTextLength, getActiveCategories, getActiveDepartments } from '../utils/helpers'
 
-const SAMPLE_CSV = `标题,类别,发布科室,发布日期,正文,附件名称,附件链接
-关于开展2024年度政务公开培训的通知,notice,办公室,2024-06-01,"各科室、各下属单位：
-为进一步提升政务公开工作水平，现就开展2024年度政务公开培训通知如下：
-一、培训时间
-二、培训地点
-三、培训内容",培训通知.pdf,https://example.com/training.pdf
-2024年第二季度财政收支情况,finance,财务科,2024-07-01,"现将2024年第二季度财政收支情况通报如下：
-一、一般公共预算收支情况
-二、政府性基金预算收支情况",收支情况表.xlsx,https://example.com/finance.xlsx
-`
-
 function parseCSV(text) {
   const lines = text.replace(/\r\n/g, '\n').split('\n')
   if (lines.length === 0) return []
