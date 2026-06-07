@@ -6,6 +6,7 @@ import CatalogDetail from './pages/CatalogDetail'
 import Login from './pages/Login'
 import ArticleList from './pages/ArticleList'
 import ArticleEdit from './pages/ArticleEdit'
+import BatchImport from './pages/BatchImport'
 import ReviewList from './pages/ReviewList'
 import ReviewDashboard from './pages/ReviewDashboard'
 import RecycleBin from './pages/RecycleBin'
@@ -44,6 +45,14 @@ function App() {
         element={
           <ProtectedRoute allowedRoles={['editor']}>
             <ArticleEdit />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/batch-import"
+        element={
+          <ProtectedRoute allowedRoles={['editor']}>
+            <BatchImport />
           </ProtectedRoute>
         }
       />

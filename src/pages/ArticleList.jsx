@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Edit2, Trash2, Send, Eye } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, Send, Eye, Upload } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
@@ -105,13 +105,22 @@ export default function ArticleList() {
               ))}
             </select>
           </div>
-          <button
-            onClick={() => navigate('/admin/articles/new')}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-800 text-white rounded-lg hover:bg-primary-900 transition-colors text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            新增信息
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => navigate('/admin/batch-import')}
+              className="flex items-center gap-2 px-4 py-2 border border-primary-600 text-primary-700 rounded-lg hover:bg-primary-50 transition-colors text-sm font-medium"
+            >
+              <Upload className="w-4 h-4" />
+              批量导入
+            </button>
+            <button
+              onClick={() => navigate('/admin/articles/new')}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-800 text-white rounded-lg hover:bg-primary-900 transition-colors text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              新增信息
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">

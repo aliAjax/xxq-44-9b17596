@@ -10,6 +10,7 @@ export const OPERATION_ACTIONS = {
   REVIEW_REJECT: 'review_reject',
   DELETE: 'delete',
   RESTORE: 'restore',
+  BATCH_IMPORT: 'batch_import',
 }
 
 export const getActionText = (action) => {
@@ -21,6 +22,7 @@ export const getActionText = (action) => {
     [OPERATION_ACTIONS.REVIEW_REJECT]: '审核退回',
     [OPERATION_ACTIONS.DELETE]: '删除',
     [OPERATION_ACTIONS.RESTORE]: '恢复',
+    [OPERATION_ACTIONS.BATCH_IMPORT]: '批量导入',
   }
   return actionMap[action] || action
 }
@@ -34,6 +36,7 @@ export const getActionColor = (action) => {
     [OPERATION_ACTIONS.REVIEW_REJECT]: 'bg-red-100 text-red-700',
     [OPERATION_ACTIONS.DELETE]: 'bg-red-100 text-red-700',
     [OPERATION_ACTIONS.RESTORE]: 'bg-emerald-100 text-emerald-700',
+    [OPERATION_ACTIONS.BATCH_IMPORT]: 'bg-purple-100 text-purple-700',
   }
   return colorMap[action] || 'bg-gray-100 text-gray-700'
 }

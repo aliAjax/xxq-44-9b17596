@@ -19,6 +19,7 @@ const actionTypes = {
   SET_USER: 'SET_USER',
   LOGOUT: 'LOGOUT',
   ADD_ARTICLE: 'ADD_ARTICLE',
+  BATCH_ADD_ARTICLES: 'BATCH_ADD_ARTICLES',
   UPDATE_ARTICLE: 'UPDATE_ARTICLE',
   DELETE_ARTICLE: 'DELETE_ARTICLE',
   RESTORE_ARTICLE: 'RESTORE_ARTICLE',
@@ -57,6 +58,11 @@ function reducer(state, action) {
       return {
         ...state,
         articles: [action.payload, ...state.articles],
+      }
+    case actionTypes.BATCH_ADD_ARTICLES:
+      return {
+        ...state,
+        articles: [...action.payload, ...state.articles],
       }
     case actionTypes.UPDATE_ARTICLE:
       return {
@@ -225,6 +231,34 @@ export function AppProvider({ children }) {
     addOperationLog(action, newArticle.title)
 
     return newArticle
+  }
+
+  const batchAddArticles = (articles) => {
+    const now = formatDate(new Date())
+    const newArticles = articles.map((article) => {
+      const category = state.categories.find((c) => c.code === article.category)
+      return {
+        ...article,
+        id: generateId(),
+        categoryName: category ? category.name : '',
+        authorId: state.currentUser.id,
+        authorName: state.currentUser.name,
+        createdAt: now,
+        updatedAt: now,
+        reviewedAt: '',
+        reviewerId: '',
+        reviewerName: '',
+        rejectReason: '',
+        deleted: false,
+      }
+    })
+    const allArticles = [...newArticles, ...state.articles]
+    storage.set(STORAGE_KEYS.ARTICLES, allArticles)
+    dispatch({ type: actionTypes.BATCH_ADD_ARTICLES, payload: newArticles })
+
+    addOperationLog(OPERATION_ACTIONS.BATCH_IMPORT, `共${newArticles.length}条`)
+
+    return newArticles
   }
 
   const updateArticle = (id, updates) => {
@@ -417,6 +451,7 @@ export function AppProvider({ children }) {
         login,
         logout,
         addArticle,
+        batchAddArticles,
         updateArticle,
         deleteArticle,
         restoreArticle,

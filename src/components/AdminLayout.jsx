@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2, BarChart3, Trash2, PieChart, Calendar, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2, BarChart3, Trash2, PieChart, Calendar, ClipboardList, Upload } from 'lucide-react'
 import { useApp } from '../context/useApp'
 
 export default function AdminLayout({ children }) {
@@ -18,6 +18,12 @@ export default function AdminLayout({ children }) {
       path: '/admin/articles',
       label: '信息管理',
       icon: FileText,
+      roles: ['editor'],
+    },
+    {
+      path: '/admin/batch-import',
+      label: '批量导入',
+      icon: Upload,
       roles: ['editor'],
     },
     {
