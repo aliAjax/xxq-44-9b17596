@@ -187,8 +187,9 @@ export default function BatchImport() {
       }
 
       if (!draft) {
+        const currentUserId = state.currentUser?.id
         const allDrafts = storage.get(STORAGE_KEYS.IMPORT_DRAFTS) || []
-        draft = allDrafts.find((d) => d.id === draftId) || null
+        draft = allDrafts.find((d) => d.id === draftId && d.createdBy === currentUserId) || null
       }
 
       if (draft) {
@@ -198,7 +199,7 @@ export default function BatchImport() {
         setInputMode(draft.sourceType)
       }
     }
-  }, [searchParams, getImportDraftById, state.importDrafts, parsedData])
+  }, [searchParams, getImportDraftById, state.importDrafts, state.currentUser, parsedData])
 
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0]

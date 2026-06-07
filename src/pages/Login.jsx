@@ -28,6 +28,7 @@ export default function Login() {
     return (
       matchesRoute(path, '/admin/articles') ||
       matchesRoute(path, '/admin/batch-import') ||
+      matchesRoute(path, '/admin/import-drafts') ||
       matchesRoute(path, '/admin/recycle') ||
       matchesRoute(path, '/admin/department-stats') ||
       matchesRoute(path, '/admin/calendar') ||

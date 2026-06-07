@@ -65,6 +65,7 @@ function reducer(state, action) {
         reviewFlowConfigs: action.payload.reviewFlowConfigs,
         currentUser: action.payload.currentUser,
         articleVersions: action.payload.articleVersions,
+        importDrafts: action.payload.importDrafts,
       }
     case actionTypes.SET_USER:
       return {
