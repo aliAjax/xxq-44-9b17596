@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Edit2, Trash2, Send, Eye, Upload } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, Send, Eye, Upload, Clock } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
+import VersionHistoryModal from '../components/VersionHistoryModal'
 import { useApp } from '../context/useApp'
 
 const PAGE_SIZE = 10
@@ -15,6 +16,8 @@ export default function ArticleList() {
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('')
   const [category, setCategory] = useState('')
+  const [showVersionModal, setShowVersionModal] = useState(false)
+  const [versionArticle, setVersionArticle] = useState(null)
 
   const filteredArticles = useMemo(() => {
     let result = state.articles.filter((a) => !a.deleted)
@@ -50,6 +53,11 @@ export default function ArticleList() {
     if (window.confirm('确定要提交审核吗？')) {
       updateArticle(id, { status: 'pending' })
     }
+  }
+
+  const handleViewVersions = (article) => {
+    setVersionArticle(article)
+    setShowVersionModal(true)
   }
 
   return (
@@ -180,6 +188,13 @@ export default function ArticleList() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
+                        <button
+                          onClick={() => handleViewVersions(article)}
+                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                          title="版本历史"
+                        >
+                          <Clock className="w-4 h-4" />
+                        </button>
                         {(article.status === 'draft' || article.status === 'rejected') && (
                           <button
                             onClick={() =>
@@ -232,6 +247,16 @@ export default function ArticleList() {
           </div>
         )}
       </div>
+
+      {showVersionModal && versionArticle && (
+        <VersionHistoryModal
+          article={versionArticle}
+          onClose={() => {
+            setShowVersionModal(false)
+            setVersionArticle(null)
+          }}
+        />
+      )}
     </AdminLayout>
   )
 }

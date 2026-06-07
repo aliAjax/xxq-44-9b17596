@@ -9,6 +9,8 @@ const STORAGE_KEYS = {
   OPERATION_LOGS: 'gov_operation_logs',
   REVIEW_FLOW_CONFIGS: 'gov_review_flow_configs',
   REVIEW_FLOW_INITIALIZED: 'gov_review_flow_initialized',
+  ARTICLE_VERSIONS: 'gov_article_versions',
+  VERSIONS_INITIALIZED: 'gov_versions_initialized',
   INITIALIZED: 'gov_initialized',
 }
 

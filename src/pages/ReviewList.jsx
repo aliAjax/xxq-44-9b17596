@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from 'react'
-import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate, History, Clock } from 'lucide-react'
+import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate, History, Clock, GitCompare } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
 import RejectTemplateManager from '../components/RejectTemplateManager'
+import VersionHistoryModal from '../components/VersionHistoryModal'
 import { useApp } from '../context/useApp'
 import { getReviewStageText, getReviewStageColor } from '../utils/helpers'
 
@@ -23,6 +24,8 @@ export default function ReviewList() {
   const [detailArticle, setDetailArticle] = useState(null)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [historyArticle, setHistoryArticle] = useState(null)
+  const [showVersionModal, setShowVersionModal] = useState(false)
+  const [versionArticle, setVersionArticle] = useState(null)
 
   const userRole = currentUser?.role
 
@@ -153,6 +156,11 @@ export default function ReviewList() {
   const handleViewHistory = (article) => {
     setHistoryArticle(article)
     setShowHistoryModal(true)
+  }
+
+  const handleViewVersions = (article) => {
+    setVersionArticle(article)
+    setShowVersionModal(true)
   }
 
   const getPendingTabLabel = () => {
@@ -308,6 +316,13 @@ export default function ReviewList() {
                           title="审核历史"
                         >
                           <History className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleViewVersions(article)}
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                          title="版本历史"
+                        >
+                          <GitCompare className="w-4 h-4" />
                         </button>
                         {isArticlePendingForUser(article) && (
                           <>
@@ -523,31 +538,43 @@ export default function ReviewList() {
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
-              {isArticlePendingForUser(detailArticle) && (
-                <>
-                  <button
-                    onClick={() => {
-                      setShowDetailModal(false)
-                      handleApprove(detailArticle.id)
-                    }}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    {getApproveText(detailArticle)}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowDetailModal(false)
-                      handleReject(detailArticle.id)
-                    }}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center gap-2"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    {getRejectText(detailArticle)}
-                  </button>
-                </>
-              )}
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50">
+              <button
+                onClick={() => {
+                  setShowDetailModal(false)
+                  handleViewVersions(detailArticle)
+                }}
+                className="px-4 py-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors text-sm flex items-center gap-2"
+              >
+                <GitCompare className="w-4 h-4" />
+                版本历史
+              </button>
+              <div className="flex gap-3">
+                {isArticlePendingForUser(detailArticle) && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowDetailModal(false)
+                        handleApprove(detailArticle.id)
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      {getApproveText(detailArticle)}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowDetailModal(false)
+                        handleReject(detailArticle.id)
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center gap-2"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      {getRejectText(detailArticle)}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -630,6 +657,17 @@ export default function ReviewList() {
             </div>
           </div>
         </div>
+      )}
+
+      {showVersionModal && versionArticle && (
+        <VersionHistoryModal
+          article={versionArticle}
+          onClose={() => {
+            setShowVersionModal(false)
+            setVersionArticle(null)
+          }}
+          showRestore={false}
+        />
       )}
     </AdminLayout>
   )

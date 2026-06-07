@@ -1,7 +1,14 @@
 import { useReducer, useEffect } from 'react'
 import { storage, STORAGE_KEYS } from '../utils/storage'
 import { mockArticles, users, categories, departments, rejectTemplates, reviewFlowConfigs } from '../data/mockData'
-import { generateId, formatDate, formatDateTime, OPERATION_ACTIONS } from '../utils/helpers'
+import {
+  generateId,
+  formatDate,
+  formatDateTime,
+  OPERATION_ACTIONS,
+  VERSION_TYPES,
+  getVersionTypeText,
+} from '../utils/helpers'
 import { AppContext } from './useApp'
 
 const initialState = {
@@ -13,6 +20,7 @@ const initialState = {
   rejectTemplates: [],
   operationLogs: [],
   reviewFlowConfigs: [],
+  articleVersions: [],
 }
 
 const actionTypes = {
@@ -32,6 +40,8 @@ const actionTypes = {
   ADD_OPERATION_LOG: 'ADD_OPERATION_LOG',
   UPDATE_REVIEW_FLOW_CONFIG: 'UPDATE_REVIEW_FLOW_CONFIG',
   INIT_REVIEW_FLOW_CONFIGS: 'INIT_REVIEW_FLOW_CONFIGS',
+  ADD_ARTICLE_VERSION: 'ADD_ARTICLE_VERSION',
+  INIT_ARTICLE_VERSIONS: 'INIT_ARTICLE_VERSIONS',
 }
 
 function reducer(state, action) {
@@ -47,6 +57,7 @@ function reducer(state, action) {
         operationLogs: action.payload.operationLogs,
         reviewFlowConfigs: action.payload.reviewFlowConfigs,
         currentUser: action.payload.currentUser,
+        articleVersions: action.payload.articleVersions,
       }
     case actionTypes.SET_USER:
       return {
@@ -153,6 +164,16 @@ function reducer(state, action) {
           c.id === action.payload.id ? action.payload : c
         ),
       }
+    case actionTypes.ADD_ARTICLE_VERSION:
+      return {
+        ...state,
+        articleVersions: [action.payload, ...state.articleVersions],
+      }
+    case actionTypes.INIT_ARTICLE_VERSIONS:
+      return {
+        ...state,
+        articleVersions: action.payload,
+      }
     default:
       return state
   }
@@ -256,6 +277,43 @@ export function AppProvider({ children }) {
     })
   }
 
+  const migrateArticleVersions = (versions, articles) => {
+    if (!articles || articles.length === 0) return versions || []
+
+    const existingVersions = versions || []
+    const articleIdsWithVersions = new Set(existingVersions.map((v) => v.articleId))
+    const newVersions = [...existingVersions]
+
+    articles.forEach((article) => {
+      if (!articleIdsWithVersions.has(article.id) && !article.deleted) {
+        const initialVersion = {
+          id: 'v_' + generateId(),
+          articleId: article.id,
+          version: 1,
+          versionType: VERSION_TYPES.INITIAL,
+          description: '初始版本',
+          title: article.title,
+          category: article.category,
+          categoryName: article.categoryName,
+          department: article.department,
+          publishDate: article.publishDate,
+          content: article.content,
+          attachmentUrl: article.attachmentUrl,
+          attachmentName: article.attachmentName,
+          status: article.status,
+          reviewStage: article.reviewStage || '',
+          operatorId: article.authorId || '',
+          operatorName: article.authorName || '系统',
+          operatorRole: article.authorId ? 'editor' : 'system',
+          operatedAt: article.updatedAt || article.createdAt || formatDate(new Date()),
+        }
+        newVersions.push(initialVersion)
+      }
+    })
+
+    return newVersions
+  }
+
   useEffect(() => {
     const initialized = storage.get(STORAGE_KEYS.INITIALIZED)
     if (!initialized) {
@@ -267,6 +325,11 @@ export function AppProvider({ children }) {
       storage.set(STORAGE_KEYS.REJECT_TEMPLATES_INITIALIZED, true)
       storage.set(STORAGE_KEYS.REVIEW_FLOW_CONFIGS, reviewFlowConfigs)
       storage.set(STORAGE_KEYS.REVIEW_FLOW_INITIALIZED, true)
+
+      const initialVersions = migrateArticleVersions([], mockArticles)
+      storage.set(STORAGE_KEYS.ARTICLE_VERSIONS, initialVersions)
+      storage.set(STORAGE_KEYS.VERSIONS_INITIALIZED, true)
+
       storage.set(STORAGE_KEYS.INITIALIZED, true)
     } else {
       const templatesInitialized = storage.get(STORAGE_KEYS.REJECT_TEMPLATES_INITIALIZED)
@@ -296,6 +359,14 @@ export function AppProvider({ children }) {
       const existingArticles = storage.get(STORAGE_KEYS.ARTICLES) || []
       const migratedArticles = migrateArticles(existingArticles, migratedFlowConfigs)
       storage.set(STORAGE_KEYS.ARTICLES, migratedArticles)
+
+      const versionsInitialized = storage.get(STORAGE_KEYS.VERSIONS_INITIALIZED)
+      const existingVersions = storage.get(STORAGE_KEYS.ARTICLE_VERSIONS) || []
+      const migratedVersions = migrateArticleVersions(existingVersions, migratedArticles)
+      if (!versionsInitialized || migratedVersions.length !== existingVersions.length) {
+        storage.set(STORAGE_KEYS.ARTICLE_VERSIONS, migratedVersions)
+        storage.set(STORAGE_KEYS.VERSIONS_INITIALIZED, true)
+      }
     }
 
     const loadedCategories = storage.get(STORAGE_KEYS.CATEGORIES) || categories
@@ -305,6 +376,8 @@ export function AppProvider({ children }) {
     const finalUsers = migrateUsers(loadedUsers)
     const loadedArticles = storage.get(STORAGE_KEYS.ARTICLES) || []
     const finalArticles = migrateArticles(loadedArticles, finalFlowConfigs)
+    const loadedVersions = storage.get(STORAGE_KEYS.ARTICLE_VERSIONS) || []
+    const finalVersions = migrateArticleVersions(loadedVersions, finalArticles)
 
     dispatch({
       type: actionTypes.INIT_DATA,
@@ -317,6 +390,7 @@ export function AppProvider({ children }) {
         operationLogs: storage.get(STORAGE_KEYS.OPERATION_LOGS) || [],
         reviewFlowConfigs: finalFlowConfigs,
         currentUser: storage.get(STORAGE_KEYS.CURRENT_USER),
+        articleVersions: finalVersions,
       },
     })
   }, [])
@@ -360,6 +434,48 @@ export function AppProvider({ children }) {
     return config ? config.requireTwoLevel : false
   }
 
+  const getNextVersionNumber = (articleId) => {
+    const articleVersions = state.articleVersions.filter((v) => v.articleId === articleId)
+    if (articleVersions.length === 0) return 1
+    const maxVersion = Math.max(...articleVersions.map((v) => v.version))
+    return maxVersion + 1
+  }
+
+  const addArticleVersion = (article, versionType, description = '') => {
+    if (!article || !article.id) return null
+
+    const version = getNextVersionNumber(article.id)
+    const currentUser = state.currentUser
+
+    const newVersion = {
+      id: 'v_' + generateId(),
+      articleId: article.id,
+      version,
+      versionType,
+      description: description || getVersionTypeText(versionType),
+      title: article.title,
+      category: article.category,
+      categoryName: article.categoryName,
+      department: article.department,
+      publishDate: article.publishDate,
+      content: article.content,
+      attachmentUrl: article.attachmentUrl,
+      attachmentName: article.attachmentName,
+      status: article.status,
+      reviewStage: article.reviewStage || '',
+      operatorId: currentUser?.id || article.authorId || '',
+      operatorName: currentUser?.name || article.authorName || '系统',
+      operatorRole: currentUser?.role || (article.authorId ? 'editor' : 'system'),
+      operatedAt: formatDateTime(new Date()),
+    }
+
+    const allVersions = [newVersion, ...state.articleVersions]
+    storage.set(STORAGE_KEYS.ARTICLE_VERSIONS, allVersions)
+    dispatch({ type: actionTypes.ADD_ARTICLE_VERSION, payload: newVersion })
+
+    return newVersion
+  }
+
   const addArticle = (article) => {
     const category = state.categories.find((c) => c.code === article.category)
     const needTwoLevel = isTwoLevelReview(article.category)
@@ -388,6 +504,11 @@ export function AppProvider({ children }) {
     const articles = [newArticle, ...state.articles]
     storage.set(STORAGE_KEYS.ARTICLES, articles)
     dispatch({ type: actionTypes.ADD_ARTICLE, payload: newArticle })
+
+    const versionType = article.status === 'pending'
+      ? VERSION_TYPES.SUBMIT_REVIEW
+      : VERSION_TYPES.SAVE_DRAFT
+    addArticleVersion(newArticle, versionType)
 
     const action = article.status === 'pending'
       ? OPERATION_ACTIONS.SUBMIT_REVIEW
@@ -458,8 +579,10 @@ export function AppProvider({ children }) {
     dispatch({ type: actionTypes.UPDATE_ARTICLE, payload: updated })
 
     if (updates.status === 'pending') {
+      addArticleVersion(updated, VERSION_TYPES.SUBMIT_REVIEW)
       addOperationLog(OPERATION_ACTIONS.SUBMIT_REVIEW, updated.title)
     } else if (updates.status === 'draft') {
+      addArticleVersion(updated, VERSION_TYPES.SAVE_DRAFT)
       addOperationLog(OPERATION_ACTIONS.SAVE_DRAFT, updated.title)
     }
 
@@ -626,6 +749,27 @@ export function AppProvider({ children }) {
     storage.set(STORAGE_KEYS.ARTICLES, articles)
     dispatch({ type: actionTypes.REVIEW_ARTICLE, payload: reviewData })
 
+    const reviewedArticle = articles.find((a) => a.id === id)
+    let versionType = VERSION_TYPES.REVIEW_PASS
+    if (status === 'rejected') {
+      if (historyStage === 'first') {
+        versionType = VERSION_TYPES.FIRST_REVIEW_REJECT
+      } else if (historyStage === 'final') {
+        versionType = VERSION_TYPES.FINAL_REVIEW_REJECT
+      } else {
+        versionType = VERSION_TYPES.REVIEW_REJECT
+      }
+    } else {
+      if (historyStage === 'first') {
+        versionType = VERSION_TYPES.FIRST_REVIEW_PASS
+      } else if (historyStage === 'final') {
+        versionType = VERSION_TYPES.FINAL_REVIEW_PASS
+      }
+    }
+    if (reviewedArticle) {
+      addArticleVersion(reviewedArticle, versionType)
+    }
+
     addOperationLog(reviewAction, article.title)
   }
 
@@ -676,6 +820,79 @@ export function AppProvider({ children }) {
     return state.articles
       .filter((a) => a.deleted)
       .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt))
+  }
+
+  const getArticleVersions = (articleId) => {
+    if (!articleId) return []
+    return state.articleVersions
+      .filter((v) => v.articleId === articleId)
+      .sort((a, b) => b.version - a.version)
+  }
+
+  const getArticleVersionById = (versionId) => {
+    if (!versionId) return null
+    return state.articleVersions.find((v) => v.id === versionId) || null
+  }
+
+  const compareVersions = (version1, version2) => {
+    if (!version1 || !version2) return []
+
+    const fields = [
+      { key: 'title', label: '标题' },
+      { key: 'categoryName', label: '类别' },
+      { key: 'department', label: '科室' },
+      { key: 'publishDate', label: '发布日期' },
+      { key: 'attachmentName', label: '附件' },
+      { key: 'content', label: '正文' },
+    ]
+
+    const differences = []
+    fields.forEach((field) => {
+      const oldVal = version1[field.key] || ''
+      const newVal = version2[field.key] || ''
+      if (oldVal !== newVal) {
+        differences.push({
+          field: field.key,
+          label: field.label,
+          oldValue: oldVal,
+          newValue: newVal,
+        })
+      }
+    })
+
+    return differences
+  }
+
+  const restoreArticleFromVersion = (versionId) => {
+    const version = getArticleVersionById(versionId)
+    if (!version) return null
+
+    const article = state.articles.find((a) => a.id === version.articleId)
+    if (!article) return null
+
+    const restored = {
+      ...article,
+      title: version.title,
+      category: version.category,
+      categoryName: version.categoryName,
+      department: version.department,
+      publishDate: version.publishDate,
+      content: version.content,
+      attachmentUrl: version.attachmentUrl,
+      attachmentName: version.attachmentName,
+      status: 'draft',
+      reviewStage: '',
+      updatedAt: formatDate(new Date()),
+    }
+
+    const articles = state.articles.map((a) => (a.id === article.id ? restored : a))
+    storage.set(STORAGE_KEYS.ARTICLES, articles)
+    dispatch({ type: actionTypes.UPDATE_ARTICLE, payload: restored })
+
+    addArticleVersion(restored, VERSION_TYPES.RESTORE, `从 v${version.version} 版本恢复`)
+    addOperationLog(OPERATION_ACTIONS.RESTORE_VERSION, restored.title)
+
+    return restored
   }
 
   const addRejectTemplate = (template) => {
@@ -752,6 +969,10 @@ export function AppProvider({ children }) {
         isTwoLevelReview,
         updateReviewFlowConfig,
         getReviewFlowConfig,
+        getArticleVersions,
+        getArticleVersionById,
+        compareVersions,
+        restoreArticleFromVersion,
       }}
     >
       {children}

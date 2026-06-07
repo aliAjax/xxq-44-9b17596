@@ -15,6 +15,52 @@ export const OPERATION_ACTIONS = {
   DELETE: 'delete',
   RESTORE: 'restore',
   BATCH_IMPORT: 'batch_import',
+  RESTORE_VERSION: 'restore_version',
+}
+
+export const VERSION_TYPES = {
+  SAVE_DRAFT: 'save_draft',
+  SUBMIT_REVIEW: 'submit_review',
+  REVIEW_PASS: 'review_pass',
+  REVIEW_REJECT: 'review_reject',
+  FIRST_REVIEW_PASS: 'first_review_pass',
+  FIRST_REVIEW_REJECT: 'first_review_reject',
+  FINAL_REVIEW_PASS: 'final_review_pass',
+  FINAL_REVIEW_REJECT: 'final_review_reject',
+  INITIAL: 'initial',
+  RESTORE: 'restore',
+}
+
+export const getVersionTypeText = (type) => {
+  const typeMap = {
+    [VERSION_TYPES.SAVE_DRAFT]: '保存草稿',
+    [VERSION_TYPES.SUBMIT_REVIEW]: '提交审核',
+    [VERSION_TYPES.REVIEW_PASS]: '审核通过',
+    [VERSION_TYPES.REVIEW_REJECT]: '审核退回',
+    [VERSION_TYPES.FIRST_REVIEW_PASS]: '初审通过',
+    [VERSION_TYPES.FIRST_REVIEW_REJECT]: '初审退回',
+    [VERSION_TYPES.FINAL_REVIEW_PASS]: '终审通过',
+    [VERSION_TYPES.FINAL_REVIEW_REJECT]: '终审退回',
+    [VERSION_TYPES.INITIAL]: '初始版本',
+    [VERSION_TYPES.RESTORE]: '恢复版本',
+  }
+  return typeMap[type] || type
+}
+
+export const getVersionTypeColor = (type) => {
+  const colorMap = {
+    [VERSION_TYPES.SAVE_DRAFT]: 'bg-gray-100 text-gray-700',
+    [VERSION_TYPES.SUBMIT_REVIEW]: 'bg-orange-100 text-orange-700',
+    [VERSION_TYPES.REVIEW_PASS]: 'bg-green-100 text-green-700',
+    [VERSION_TYPES.REVIEW_REJECT]: 'bg-red-100 text-red-700',
+    [VERSION_TYPES.FIRST_REVIEW_PASS]: 'bg-blue-100 text-blue-700',
+    [VERSION_TYPES.FIRST_REVIEW_REJECT]: 'bg-red-100 text-red-700',
+    [VERSION_TYPES.FINAL_REVIEW_PASS]: 'bg-green-100 text-green-700',
+    [VERSION_TYPES.FINAL_REVIEW_REJECT]: 'bg-red-100 text-red-700',
+    [VERSION_TYPES.INITIAL]: 'bg-purple-100 text-purple-700',
+    [VERSION_TYPES.RESTORE]: 'bg-emerald-100 text-emerald-700',
+  }
+  return colorMap[type] || 'bg-gray-100 text-gray-700'
 }
 
 export const getActionText = (action) => {
@@ -31,6 +77,7 @@ export const getActionText = (action) => {
     [OPERATION_ACTIONS.DELETE]: '删除',
     [OPERATION_ACTIONS.RESTORE]: '恢复',
     [OPERATION_ACTIONS.BATCH_IMPORT]: '批量导入',
+    [OPERATION_ACTIONS.RESTORE_VERSION]: '恢复版本',
   }
   return actionMap[action] || action
 }
@@ -49,6 +96,7 @@ export const getActionColor = (action) => {
     [OPERATION_ACTIONS.DELETE]: 'bg-red-100 text-red-700',
     [OPERATION_ACTIONS.RESTORE]: 'bg-emerald-100 text-emerald-700',
     [OPERATION_ACTIONS.BATCH_IMPORT]: 'bg-purple-100 text-purple-700',
+    [OPERATION_ACTIONS.RESTORE_VERSION]: 'bg-emerald-100 text-emerald-700',
   }
   return colorMap[action] || 'bg-gray-100 text-gray-700'
 }
