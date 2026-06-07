@@ -124,7 +124,8 @@ export default function AdvancedFilterForm({
             >
               <option value="">全部状态</option>
               <option value="draft">草稿</option>
-              <option value="pending">待审核</option>
+              <option value="pending_all">待审核（含待复审）</option>
+              <option value="pending">待初审</option>
               <option value="first_reviewed">待复审</option>
               <option value="published">已发布</option>
               <option value="rejected">已退回</option>

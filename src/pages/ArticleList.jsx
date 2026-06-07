@@ -99,11 +99,17 @@ export default function ArticleList() {
       ...filters,
       keyword: searchKeyword,
     }
-    return filterArticles(state.articles, allFilters, {
+    const options = {
       isAdmin: true,
       sortBy: 'createdAt',
       sortOrder: 'desc',
-    })
+      dateField: 'updatedAt',
+    }
+    if (filters.status === 'pending_all') {
+      options.statuses = ['pending', 'first_reviewed']
+      allFilters.status = ''
+    }
+    return filterArticles(state.articles, allFilters, options)
   }, [state.articles, filters, searchKeyword])
 
   const pagination = useMemo(() => {

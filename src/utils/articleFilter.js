@@ -34,7 +34,7 @@ export const matchKeywordInHtml = (html, keyword) => {
 }
 
 export const filterArticles = (articles, filters, options = {}) => {
-  const { isAdmin = false, sortBy = 'publishDate', sortOrder = 'desc' } = options
+  const { isAdmin = false, sortBy = 'publishDate', sortOrder = 'desc', dateField = 'publishDate', statuses = null } = options
 
   let result = [...articles]
 
@@ -52,7 +52,9 @@ export const filterArticles = (articles, filters, options = {}) => {
     result = result.filter((a) => !a.deleted)
   }
 
-  if (filters.status) {
+  if (statuses && Array.isArray(statuses)) {
+    result = result.filter((a) => statuses.includes(a.status))
+  } else if (filters.status) {
     result = result.filter((a) => a.status === filters.status)
   }
 
@@ -64,12 +66,25 @@ export const filterArticles = (articles, filters, options = {}) => {
     result = result.filter((a) => a.department === filters.department)
   }
 
+  const getDateValue = (article) => {
+    if (dateField === 'publishDate') return article.publishDate
+    if (dateField === 'createdAt') return article.createdAt
+    if (dateField === 'updatedAt') return article.updatedAt
+    return article[dateField] || ''
+  }
+
   if (filters.startDate) {
-    result = result.filter((a) => a.publishDate && a.publishDate >= filters.startDate)
+    result = result.filter((a) => {
+      const dateVal = getDateValue(a)
+      return dateVal && dateVal >= filters.startDate
+    })
   }
 
   if (filters.endDate) {
-    result = result.filter((a) => a.publishDate && a.publishDate <= filters.endDate)
+    result = result.filter((a) => {
+      const dateVal = getDateValue(a)
+      return dateVal && dateVal <= filters.endDate
+    })
   }
 
   if (filters.hasAttachment !== undefined && filters.hasAttachment !== '') {

@@ -206,7 +206,7 @@ export default function DepartmentStats() {
       iconColor: 'text-orange-600',
       valueColor: 'text-orange-600',
       clickable: true,
-      status: 'pending',
+      status: 'pending_all',
     },
     {
       label: '已退回',
@@ -396,7 +396,7 @@ export default function DepartmentStats() {
                   >
                     <option value="">全部科室</option>
                     {activeDepartments.map((dept) => (
-                      <option key={dept.id} value={dept.id}>
+                      <option key={dept.id} value={dept.name}>
                         {dept.name}
                       </option>
                     ))}
@@ -566,7 +566,7 @@ export default function DepartmentStats() {
                           className="text-sm font-medium text-orange-600 cursor-pointer hover:text-orange-800 hover:underline"
                           onClick={(e) => {
                             e.stopPropagation()
-                            goToArticleList('pending', dept.id)
+                            goToArticleList('pending_all', dept.id)
                           }}
                         >
                           {dept.pendingCount}

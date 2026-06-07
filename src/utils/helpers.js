@@ -775,7 +775,7 @@ export const calculateArticleReviewDurations = (article) => {
 }
 
 export const calculateDepartmentStats = (articles, departments, filters = {}) => {
-  const { category = '', department = '', status = '', startDate = '', endDate = '' } = filters
+  const { category = '', department = '', startDate = '', endDate = '' } = filters
 
   let filteredArticles = articles.filter((a) => !a.deleted)
 
@@ -784,29 +784,26 @@ export const calculateDepartmentStats = (articles, departments, filters = {}) =>
   }
   if (department) {
     filteredArticles = filteredArticles.filter(
-      (a) => a.departmentId === department || a.department === department
+      (a) => a.department === department
     )
   }
-  if (status) {
-    filteredArticles = filteredArticles.filter((a) => a.status === status)
-  }
 
-  const inDateRange = (article) => {
-    if (!startDate && !endDate) return true
-    const dateStr = article.publishDate || article.updatedAt || article.createdAt
-    if (!dateStr) return false
-    if (startDate && dateStr < startDate) return false
-    if (endDate && dateStr > endDate) return false
-    return true
+  if (startDate) {
+    filteredArticles = filteredArticles.filter((a) => {
+      const dateVal = a.updatedAt
+      return dateVal && dateVal >= startDate
+    })
   }
-
-  if (startDate || endDate) {
-    filteredArticles = filteredArticles.filter(inDateRange)
+  if (endDate) {
+    filteredArticles = filteredArticles.filter((a) => {
+      const dateVal = a.updatedAt
+      return dateVal && dateVal <= endDate
+    })
   }
 
   const stats = departments.map((dept) => {
     const deptArticles = filteredArticles.filter(
-      (a) => a.departmentId === dept.id || a.department === dept.name
+      (a) => a.department === dept.name
     )
 
     const publishedCount = deptArticles.filter((a) => a.status === 'published').length
