@@ -82,7 +82,8 @@ export default function Login() {
       if (from) {
         const roleMatch =
           (result.user.role === 'editor' && isEditorRoute(from)) ||
-          (result.user.role === 'reviewer' && isReviewerRoute(from))
+          (result.user.role === 'reviewer' && isReviewerRoute(from)) ||
+          (result.user.role === 'senior_reviewer' && isSeniorReviewerRoute(from))
         if (roleMatch) {
           redirectPath = from
         }

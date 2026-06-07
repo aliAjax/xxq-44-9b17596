@@ -10,8 +10,14 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   }
 
   if (allowedRoles && !allowedRoles.includes(state.currentUser.role)) {
-    const redirectPath =
-      state.currentUser.role === 'editor' ? '/admin/articles' : '/admin/review'
+    let redirectPath = '/admin/dashboard'
+    if (state.currentUser.role === 'editor') {
+      redirectPath = '/admin/articles'
+    } else if (state.currentUser.role === 'reviewer') {
+      redirectPath = '/admin/dashboard'
+    } else if (state.currentUser.role === 'senior_reviewer') {
+      redirectPath = '/admin/dashboard'
+    }
     return <Navigate to={redirectPath} replace />
   }
 

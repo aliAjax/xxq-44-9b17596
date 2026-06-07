@@ -161,8 +161,34 @@ function reducer(state, action) {
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
-  const migrateArticles = (articles) => {
+  const migrateReviewFlowConfigs = (configs, categoryList) => {
+    if (!categoryList || categoryList.length === 0) return configs || []
+    const existingConfigs = configs || []
+    const existingCodes = new Set(existingConfigs.map((c) => c.categoryCode))
+    const newConfigs = [...existingConfigs]
+    let maxId = existingConfigs.length > 0
+      ? Math.max(...existingConfigs.map((c) => parseInt(c.id) || 0))
+      : 0
+
+    categoryList.forEach((cat) => {
+      if (!existingCodes.has(cat.code)) {
+        maxId += 1
+        newConfigs.push({
+          id: String(maxId),
+          categoryCode: cat.code,
+          categoryName: cat.name,
+          requireTwoLevel: false,
+        })
+      }
+    })
+
+    return newConfigs
+  }
+
+  const migrateArticles = (articles, flowConfigs) => {
     if (!articles || articles.length === 0) return []
+    const configMap = new Map((flowConfigs || []).map((c) => [c.categoryCode, c]))
+
     return articles.map((article) => {
       const migrated = { ...article }
       if (migrated.firstReviewerId === undefined) migrated.firstReviewerId = ''
@@ -173,6 +199,30 @@ export function AppProvider({ children }) {
       if (migrated.finalReviewedAt === undefined) migrated.finalReviewedAt = ''
       if (migrated.reviewStage === undefined) migrated.reviewStage = ''
       if (migrated.reviewHistory === undefined) migrated.reviewHistory = []
+
+      const config = configMap.get(article.category)
+      const needTwoLevel = config ? config.requireTwoLevel : false
+
+      if (!migrated.reviewStage) {
+        if (article.status === 'pending' && needTwoLevel) {
+          migrated.reviewStage = 'first_pending'
+        } else if (article.status === 'first_reviewed') {
+          migrated.reviewStage = 'first_passed'
+        } else if (article.status === 'published') {
+          if (needTwoLevel && migrated.finalReviewerId) {
+            migrated.reviewStage = 'final_passed'
+          } else if (migrated.reviewerId) {
+            migrated.reviewStage = 'single_passed'
+          }
+        } else if (article.status === 'rejected') {
+          if (needTwoLevel && migrated.finalReviewerId) {
+            migrated.reviewStage = 'final_rejected'
+          } else if (migrated.reviewerId) {
+            migrated.reviewStage = 'first_rejected'
+          }
+        }
+      }
+
       return migrated
     })
   }
@@ -198,27 +248,37 @@ export function AppProvider({ children }) {
         }
         storage.set(STORAGE_KEYS.REJECT_TEMPLATES_INITIALIZED, true)
       }
+
       const reviewFlowInitialized = storage.get(STORAGE_KEYS.REVIEW_FLOW_INITIALIZED)
-      if (!reviewFlowInitialized) {
-        storage.set(STORAGE_KEYS.REVIEW_FLOW_CONFIGS, reviewFlowConfigs)
+      const loadedCategories = storage.get(STORAGE_KEYS.CATEGORIES) || categories
+      const existingFlowConfigs = storage.get(STORAGE_KEYS.REVIEW_FLOW_CONFIGS) || []
+      const migratedFlowConfigs = migrateReviewFlowConfigs(existingFlowConfigs, loadedCategories)
+      if (!reviewFlowInitialized || migratedFlowConfigs.length !== existingFlowConfigs.length) {
+        storage.set(STORAGE_KEYS.REVIEW_FLOW_CONFIGS, migratedFlowConfigs)
         storage.set(STORAGE_KEYS.REVIEW_FLOW_INITIALIZED, true)
       }
+
       const existingArticles = storage.get(STORAGE_KEYS.ARTICLES) || []
-      const migratedArticles = migrateArticles(existingArticles)
+      const migratedArticles = migrateArticles(existingArticles, migratedFlowConfigs)
       storage.set(STORAGE_KEYS.ARTICLES, migratedArticles)
     }
 
+    const loadedCategories = storage.get(STORAGE_KEYS.CATEGORIES) || categories
+    const loadedFlowConfigs = storage.get(STORAGE_KEYS.REVIEW_FLOW_CONFIGS) || []
+    const finalFlowConfigs = migrateReviewFlowConfigs(loadedFlowConfigs, loadedCategories)
     const loadedArticles = storage.get(STORAGE_KEYS.ARTICLES) || []
+    const finalArticles = migrateArticles(loadedArticles, finalFlowConfigs)
+
     dispatch({
       type: actionTypes.INIT_DATA,
       payload: {
-        articles: migrateArticles(loadedArticles),
+        articles: finalArticles,
         users: storage.get(STORAGE_KEYS.USERS) || [],
-        categories: storage.get(STORAGE_KEYS.CATEGORIES) || [],
+        categories: loadedCategories,
         departments: storage.get(STORAGE_KEYS.DEPARTMENTS) || [],
         rejectTemplates: storage.get(STORAGE_KEYS.REJECT_TEMPLATES) || [],
         operationLogs: storage.get(STORAGE_KEYS.OPERATION_LOGS) || [],
-        reviewFlowConfigs: storage.get(STORAGE_KEYS.REVIEW_FLOW_CONFIGS) || [],
+        reviewFlowConfigs: finalFlowConfigs,
         currentUser: storage.get(STORAGE_KEYS.CURRENT_USER),
       },
     })
