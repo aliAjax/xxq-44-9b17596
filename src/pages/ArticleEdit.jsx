@@ -76,9 +76,15 @@ export default function ArticleEdit() {
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: '' }))
-    }
+    setErrors((prev) => {
+      const next = { ...prev }
+      delete next[name]
+      if (name === 'category') {
+        delete next.attachment
+        delete next.publishDate
+      }
+      return next
+    })
   }
 
   const handleContentInput = () => {
@@ -96,24 +102,33 @@ export default function ArticleEdit() {
     handleContentInput()
   }
 
-  const validateBasic = () => {
+  const getBasicErrors = () => {
     const newErrors = {}
     if (!formData.title.trim()) newErrors.title = '请输入标题'
     if (!formData.category) newErrors.category = '请选择公开类别'
     if (!formData.department) newErrors.department = '请选择发布科室'
     if (!formData.content.trim()) newErrors.content = '请输入正文内容'
+    return newErrors
+  }
+
+  const validateBasic = () => {
+    const newErrors = getBasicErrors()
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
   const validateWithRules = (isSubmit = false) => {
-    const basicValid = validateBasic()
-    if (!basicValid) {
+    const basicErrors = getBasicErrors()
+    const hasBasicError = Object.keys(basicErrors).length > 0
+
+    if (hasBasicError) {
+      setErrors(basicErrors)
       setWarnings([])
-      return { isValid: false, errors, warnings: [] }
+      return { isValid: false, errors: basicErrors, warnings: [] }
     }
 
     if (!currentRules) {
+      setErrors({})
       setWarnings([])
       return { isValid: true, errors: {}, warnings: [] }
     }
@@ -179,12 +194,12 @@ export default function ArticleEdit() {
       }
     }
 
-    const allErrors = { ...errors, ...ruleErrors }
+    const allErrors = { ...basicErrors, ...ruleErrors }
     setErrors(allErrors)
     setWarnings(ruleWarnings)
 
     return {
-      isValid: Object.keys(allErrors).length === 0 || !isSubmit,
+      isValid: Object.keys(allErrors).length === 0,
       errors: allErrors,
       warnings: ruleWarnings,
     }
