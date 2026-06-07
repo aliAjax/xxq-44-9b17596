@@ -16,6 +16,9 @@ export const OPERATION_ACTIONS = {
   RESTORE: 'restore',
   BATCH_IMPORT: 'batch_import',
   RESTORE_VERSION: 'restore_version',
+  CLAIM_TASK: 'claim_task',
+  RELEASE_TASK: 'release_task',
+  FORCE_RELEASE_TASK: 'force_release_task',
 }
 
 export const VERSION_TYPES = {
@@ -78,6 +81,9 @@ export const getActionText = (action) => {
     [OPERATION_ACTIONS.RESTORE]: '恢复',
     [OPERATION_ACTIONS.BATCH_IMPORT]: '批量导入',
     [OPERATION_ACTIONS.RESTORE_VERSION]: '恢复版本',
+    [OPERATION_ACTIONS.CLAIM_TASK]: '认领任务',
+    [OPERATION_ACTIONS.RELEASE_TASK]: '释放任务',
+    [OPERATION_ACTIONS.FORCE_RELEASE_TASK]: '强制释放任务',
   }
   return actionMap[action] || action
 }
@@ -97,6 +103,9 @@ export const getActionColor = (action) => {
     [OPERATION_ACTIONS.RESTORE]: 'bg-emerald-100 text-emerald-700',
     [OPERATION_ACTIONS.BATCH_IMPORT]: 'bg-purple-100 text-purple-700',
     [OPERATION_ACTIONS.RESTORE_VERSION]: 'bg-emerald-100 text-emerald-700',
+    [OPERATION_ACTIONS.CLAIM_TASK]: 'bg-cyan-100 text-cyan-700',
+    [OPERATION_ACTIONS.RELEASE_TASK]: 'bg-amber-100 text-amber-700',
+    [OPERATION_ACTIONS.FORCE_RELEASE_TASK]: 'bg-rose-100 text-rose-700',
   }
   return colorMap[action] || 'bg-gray-100 text-gray-700'
 }
@@ -321,4 +330,28 @@ export const getStatusCountByDate = (articles, dateStr) => {
     draft: dayArticles.filter((a) => a.status === 'draft').length,
     articles: dayArticles,
   }
+}
+
+export const isArticleClaimed = (article) => {
+  return !!(article && article.claimantId && article.claimedAt)
+}
+
+export const isArticleClaimedByUser = (article, userId) => {
+  if (!article || !userId) return false
+  return article.claimantId === userId
+}
+
+export const canUserOperateArticle = (article, userId, userRole) => {
+  if (!article || !userId) return false
+  if (!isArticleClaimed(article)) return false
+  return article.claimantId === userId
+}
+
+export const canUserClaimArticle = (article, userId, userRole, isArticlePendingForUser) => {
+  if (!article || !userId) return false
+  if (isArticleClaimed(article)) return false
+  if (typeof isArticlePendingForUser === 'function') {
+    return isArticlePendingForUser(article)
+  }
+  return true
 }

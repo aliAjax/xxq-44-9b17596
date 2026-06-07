@@ -1,17 +1,17 @@
 import { useCallback, useMemo, useState } from 'react'
-import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate, History, Clock, GitCompare } from 'lucide-react'
+import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate, History, Clock, GitCompare, Hand, Unlock } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
 import RejectTemplateManager from '../components/RejectTemplateManager'
 import VersionHistoryModal from '../components/VersionHistoryModal'
 import { useApp } from '../context/useApp'
-import { getReviewStageText, getReviewStageColor } from '../utils/helpers'
+import { getReviewStageText, getReviewStageColor, isArticleClaimed, isArticleClaimedByUser } from '../utils/helpers'
 
 const PAGE_SIZE = 10
 
 export default function ReviewList() {
-  const { state, reviewArticle, isTwoLevelReview } = useApp()
+  const { state, reviewArticle, isTwoLevelReview, claimArticle, releaseArticle } = useApp()
   const currentUser = state.currentUser
   const [activeTab, setActiveTab] = useState('pending')
   const [currentPage, setCurrentPage] = useState(1)
@@ -28,6 +28,30 @@ export default function ReviewList() {
   const [versionArticle, setVersionArticle] = useState(null)
 
   const userRole = currentUser?.role
+
+  const canUserOperateArticle = useCallback((article) => {
+    if (!currentUser || !article) return false
+    if (!isArticlePendingForUser(article)) return false
+    if (!isArticleClaimed(article)) return false
+    return isArticleClaimedByUser(article, currentUser.id)
+  }, [currentUser, isArticlePendingForUser])
+
+  const canUserClaimArticle = useCallback((article) => {
+    if (!currentUser || !article) return false
+    if (!isArticlePendingForUser(article)) return false
+    if (isArticleClaimed(article)) return false
+    return true
+  }, [currentUser, isArticlePendingForUser])
+
+  const canUserReleaseArticle = useCallback((article, isForce = false) => {
+    if (!currentUser || !article) return false
+    if (!isArticlePendingForUser(article)) return false
+    if (!isArticleClaimed(article)) return false
+    if (isForce) {
+      return userRole === 'senior_reviewer'
+    }
+    return isArticleClaimedByUser(article, currentUser.id)
+  }, [currentUser, userRole, isArticlePendingForUser])
 
   const isArticlePendingForUser = useCallback((article) => {
     if (article.status !== 'pending' && article.status !== 'first_reviewed') return false
@@ -153,6 +177,25 @@ export default function ReviewList() {
     setShowDetailModal(true)
   }
 
+  const handleClaim = (id) => {
+    const result = claimArticle(id)
+    if (result && !result.success) {
+      alert(result.message)
+    }
+  }
+
+  const handleRelease = (id, isForce = false) => {
+    const confirmText = isForce
+      ? '确定要强制释放该任务吗？'
+      : '确定要释放该任务吗？释放后其他人可以认领。'
+    if (window.confirm(confirmText)) {
+      const result = releaseArticle(id, isForce)
+      if (result && !result.success) {
+        alert(result.message)
+      }
+    }
+  }
+
   const handleViewHistory = (article) => {
     setHistoryArticle(article)
     setShowHistoryModal(true)
@@ -256,12 +299,17 @@ export default function ReviewList() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
                   状态
                 </th>
+                {activeTab === 'pending' && (
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-32">
+                    认领状态
+                  </th>
+                )}
                 {activeTab === 'reviewed' && (
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-32">
                     审核时间
                   </th>
                 )}
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-48">
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-56">
                   操作
                 </th>
               </tr>
@@ -294,6 +342,18 @@ export default function ReviewList() {
                     <td className="px-4 py-3">
                       <StatusTag status={article.status} reviewStage={article.reviewStage} />
                     </td>
+                    {activeTab === 'pending' && (
+                      <td className="px-4 py-3">
+                        {isArticleClaimed(article) ? (
+                          <div>
+                            <div className="text-sm font-medium text-cyan-700">{article.claimantName}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{article.claimedAt}</div>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">未认领</span>
+                        )}
+                      </td>
+                    )}
                     {activeTab === 'reviewed' && (
                       <td className="px-4 py-3">
                         <span className="text-sm text-gray-500">
@@ -324,7 +384,34 @@ export default function ReviewList() {
                         >
                           <GitCompare className="w-4 h-4" />
                         </button>
-                        {isArticlePendingForUser(article) && (
+                        {activeTab === 'pending' && canUserClaimArticle(article) && (
+                          <button
+                            onClick={() => handleClaim(article.id)}
+                            className="p-1.5 text-gray-400 hover:text-cyan-600 hover:bg-cyan-50 rounded transition-colors"
+                            title="认领任务"
+                          >
+                            <Hand className="w-4 h-4" />
+                          </button>
+                        )}
+                        {activeTab === 'pending' && canUserReleaseArticle(article) && (
+                          <button
+                            onClick={() => handleRelease(article.id)}
+                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                            title="释放任务"
+                          >
+                            <Unlock className="w-4 h-4" />
+                          </button>
+                        )}
+                        {activeTab === 'pending' && canUserReleaseArticle(article, true) && !canUserReleaseArticle(article) && (
+                          <button
+                            onClick={() => handleRelease(article.id, true)}
+                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                            title="强制释放"
+                          >
+                            <Unlock className="w-4 h-4" />
+                          </button>
+                        )}
+                        {activeTab === 'pending' && canUserOperateArticle(article) && (
                           <>
                             <button
                               onClick={() => handleApprove(article.id)}
@@ -349,7 +436,7 @@ export default function ReviewList() {
               ) : (
                 <tr>
                   <td
-                    colSpan={activeTab === 'reviewed' ? 6 : 5}
+                    colSpan={6}
                     className="px-4 py-12 text-center text-gray-400"
                   >
                     暂无数据
@@ -478,6 +565,11 @@ export default function ReviewList() {
                     二级审核
                   </span>
                 )}
+                {isArticleClaimed(detailArticle) && (
+                  <span className="text-xs bg-cyan-100 text-cyan-700 px-2 py-0.5 rounded-full">
+                    {detailArticle.claimantName} 认领于 {detailArticle.claimedAt}
+                  </span>
+                )}
               </div>
               <div
                 className="prose max-w-none text-gray-700"
@@ -550,7 +642,46 @@ export default function ReviewList() {
                 版本历史
               </button>
               <div className="flex gap-3">
-                {isArticlePendingForUser(detailArticle) && (
+                {canUserClaimArticle(detailArticle) && (
+                  <button
+                    onClick={() => {
+                      handleClaim(detailArticle.id)
+                      const updated = state.articles.find((a) => a.id === detailArticle.id)
+                      if (updated) setDetailArticle(updated)
+                    }}
+                    className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors text-sm flex items-center gap-2"
+                  >
+                    <Hand className="w-4 h-4" />
+                    认领任务
+                  </button>
+                )}
+                {canUserReleaseArticle(detailArticle) && (
+                  <button
+                    onClick={() => {
+                      handleRelease(detailArticle.id)
+                      const updated = state.articles.find((a) => a.id === detailArticle.id)
+                      if (updated) setDetailArticle(updated)
+                    }}
+                    className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm flex items-center gap-2"
+                  >
+                    <Unlock className="w-4 h-4" />
+                    释放任务
+                  </button>
+                )}
+                {canUserReleaseArticle(detailArticle, true) && !canUserReleaseArticle(detailArticle) && (
+                  <button
+                    onClick={() => {
+                      handleRelease(detailArticle.id, true)
+                      const updated = state.articles.find((a) => a.id === detailArticle.id)
+                      if (updated) setDetailArticle(updated)
+                    }}
+                    className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors text-sm flex items-center gap-2"
+                  >
+                    <Unlock className="w-4 h-4" />
+                    强制释放
+                  </button>
+                )}
+                {canUserOperateArticle(detailArticle) && (
                   <>
                     <button
                       onClick={() => {

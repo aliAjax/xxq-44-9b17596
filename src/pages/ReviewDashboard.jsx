@@ -12,15 +12,17 @@ import {
   MessageSquare,
   BookTemplate,
   History,
+  Hand,
+  Unlock,
 } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import RejectTemplateManager from '../components/RejectTemplateManager'
 import { useApp } from '../context/useApp'
-import { getReviewStageText, getReviewStageColor } from '../utils/helpers'
+import { getReviewStageText, getReviewStageColor, isArticleClaimed, isArticleClaimedByUser } from '../utils/helpers'
 
 export default function ReviewDashboard() {
-  const { state, reviewArticle, isTwoLevelReview } = useApp()
+  const { state, reviewArticle, isTwoLevelReview, claimArticle, releaseArticle } = useApp()
   const navigate = useNavigate()
   const currentUser = state.currentUser
   const userRole = currentUser?.role
@@ -30,6 +32,30 @@ export default function ReviewDashboard() {
   const [rejectArticleId, setRejectArticleId] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
   const [showTemplatePanel, setShowTemplatePanel] = useState(false)
+
+  const canUserOperateArticle = useCallback((article) => {
+    if (!currentUser || !article) return false
+    if (!isArticlePendingForUser(article)) return false
+    if (!isArticleClaimed(article)) return false
+    return isArticleClaimedByUser(article, currentUser.id)
+  }, [currentUser, isArticlePendingForUser])
+
+  const canUserClaimArticle = useCallback((article) => {
+    if (!currentUser || !article) return false
+    if (!isArticlePendingForUser(article)) return false
+    if (isArticleClaimed(article)) return false
+    return true
+  }, [currentUser, isArticlePendingForUser])
+
+  const canUserReleaseArticle = useCallback((article, isForce = false) => {
+    if (!currentUser || !article) return false
+    if (!isArticlePendingForUser(article)) return false
+    if (!isArticleClaimed(article)) return false
+    if (isForce) {
+      return userRole === 'senior_reviewer'
+    }
+    return isArticleClaimedByUser(article, currentUser.id)
+  }, [currentUser, userRole, isArticlePendingForUser])
 
   const isArticlePendingForUser = useCallback((article) => {
     if (article.status !== 'pending' && article.status !== 'first_reviewed') return false
@@ -110,6 +136,25 @@ export default function ReviewDashboard() {
   const handleViewDetail = (article) => {
     setDetailArticle(article)
     setShowDetailModal(true)
+  }
+
+  const handleClaim = (id) => {
+    const result = claimArticle(id)
+    if (result && !result.success) {
+      alert(result.message)
+    }
+  }
+
+  const handleRelease = (id, isForce = false) => {
+    const confirmText = isForce
+      ? '确定要强制释放该任务吗？'
+      : '确定要释放该任务吗？释放后其他人可以认领。'
+    if (window.confirm(confirmText)) {
+      const result = releaseArticle(id, isForce)
+      if (result && !result.success) {
+        alert(result.message)
+      }
+    }
   }
 
   const handleApprove = (id) => {
@@ -282,9 +327,38 @@ export default function ReviewDashboard() {
                       <p className="text-xs text-gray-400 mt-1">
                         提交时间：{article.createdAt}
                       </p>
+                      {isArticleClaimed(article) && (
+                        <p className="text-xs text-cyan-600 mt-1">
+                          认领人：{article.claimantName} · {article.claimedAt}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <StatusTag status={article.status} reviewStage={article.reviewStage} />
+                      {canUserClaimArticle(article) && (
+                        <button
+                          className="p-1.5 text-cyan-600 hover:text-cyan-700 hover:bg-cyan-50 rounded transition-colors"
+                          title="认领任务"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleClaim(article.id)
+                          }}
+                        >
+                          <Hand className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canUserReleaseArticle(article) && (
+                        <button
+                          className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
+                          title="释放任务"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRelease(article.id)
+                          }}
+                        >
+                          <Unlock className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
                         title="查看详情"
@@ -348,6 +422,11 @@ export default function ReviewDashboard() {
                     二级审核
                   </span>
                 )}
+                {isArticleClaimed(detailArticle) && (
+                  <span className="text-xs bg-cyan-100 text-cyan-700 px-2 py-0.5 rounded-full">
+                    {detailArticle.claimantName} 认领于 {detailArticle.claimedAt}
+                  </span>
+                )}
               </div>
               <div
                 className="prose max-w-none text-gray-700"
@@ -406,27 +485,76 @@ export default function ReviewDashboard() {
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
-              {isArticlePendingForUser(detailArticle) && (
-                <>
-                  <button
-                    onClick={() => handleApprove(detailArticle.id)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    {getApproveText(detailArticle)}
-                  </button>
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50">
+              <div className="flex items-center gap-2">
+                {isArticlePendingForUser(detailArticle) && !isArticleClaimed(detailArticle) && (
+                  <span className="text-xs text-gray-500">提示：请先认领任务后再进行审核操作</span>
+                )}
+                {isArticlePendingForUser(detailArticle) && isArticleClaimed(detailArticle) && !canUserOperateArticle(detailArticle) && (
+                  <span className="text-xs text-amber-600">该任务已被 {detailArticle.claimantName} 认领</span>
+                )}
+              </div>
+              <div className="flex justify-end gap-3">
+                {canUserClaimArticle(detailArticle) && (
                   <button
                     onClick={() => {
-                      handleReject(detailArticle.id)
+                      handleClaim(detailArticle.id)
+                      const updated = state.articles.find((a) => a.id === detailArticle.id)
+                      if (updated) setDetailArticle(updated)
                     }}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center gap-2"
+                    className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors text-sm flex items-center gap-2"
                   >
-                    <XCircle className="w-4 h-4" />
-                    {getRejectText(detailArticle)}
+                    <Hand className="w-4 h-4" />
+                    认领任务
                   </button>
-                </>
-              )}
+                )}
+                {canUserReleaseArticle(detailArticle) && (
+                  <button
+                    onClick={() => {
+                      handleRelease(detailArticle.id)
+                      const updated = state.articles.find((a) => a.id === detailArticle.id)
+                      if (updated) setDetailArticle(updated)
+                    }}
+                    className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm flex items-center gap-2"
+                  >
+                    <Unlock className="w-4 h-4" />
+                    释放任务
+                  </button>
+                )}
+                {canUserReleaseArticle(detailArticle, true) && !canUserReleaseArticle(detailArticle) && (
+                  <button
+                    onClick={() => {
+                      handleRelease(detailArticle.id, true)
+                      const updated = state.articles.find((a) => a.id === detailArticle.id)
+                      if (updated) setDetailArticle(updated)
+                    }}
+                    className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors text-sm flex items-center gap-2"
+                  >
+                    <Unlock className="w-4 h-4" />
+                    强制释放
+                  </button>
+                )}
+                {canUserOperateArticle(detailArticle) && (
+                  <>
+                    <button
+                      onClick={() => handleApprove(detailArticle.id)}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      {getApproveText(detailArticle)}
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleReject(detailArticle.id)
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center gap-2"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      {getRejectText(detailArticle)}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>

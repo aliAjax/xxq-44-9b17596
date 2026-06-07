@@ -298,6 +298,9 @@ export const mockArticles = [
     finalReviewedAt: '',
     reviewStage: '',
     reviewHistory: [],
+    claimantId: '2',
+    claimantName: '李审核',
+    claimedAt: daysAgo(1) + ' 09:30',
   },
   {
     id: '7',
@@ -406,6 +409,9 @@ export const mockArticles = [
         comment: '数据核对无误，提请复核。',
       },
     ],
+    claimantId: '3',
+    claimantName: '王复核',
+    claimedAt: daysAgo(2) + ' 14:00',
   },
   {
     id: '10',

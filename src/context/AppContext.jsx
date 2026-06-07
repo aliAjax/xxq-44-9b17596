@@ -34,6 +34,8 @@ const actionTypes = {
   RESTORE_ARTICLE: 'RESTORE_ARTICLE',
   PERMANENT_DELETE_ARTICLE: 'PERMANENT_DELETE_ARTICLE',
   REVIEW_ARTICLE: 'REVIEW_ARTICLE',
+  CLAIM_ARTICLE: 'CLAIM_ARTICLE',
+  RELEASE_ARTICLE: 'RELEASE_ARTICLE',
   ADD_REJECT_TEMPLATE: 'ADD_REJECT_TEMPLATE',
   UPDATE_REJECT_TEMPLATE: 'UPDATE_REJECT_TEMPLATE',
   DELETE_REJECT_TEMPLATE: 'DELETE_REJECT_TEMPLATE',
@@ -126,6 +128,37 @@ function reducer(state, action) {
                 finalReviewedAt: action.payload.finalReviewedAt || item.finalReviewedAt,
                 reviewStage: action.payload.reviewStage || item.reviewStage,
                 reviewHistory: action.payload.reviewHistory || item.reviewHistory,
+                claimantId: '',
+                claimantName: '',
+                claimedAt: '',
+              }
+            : item
+        ),
+      }
+    case actionTypes.CLAIM_ARTICLE:
+      return {
+        ...state,
+        articles: state.articles.map((item) =>
+          item.id === action.payload.id
+            ? {
+                ...item,
+                claimantId: action.payload.claimantId,
+                claimantName: action.payload.claimantName,
+                claimedAt: action.payload.claimedAt,
+              }
+            : item
+        ),
+      }
+    case actionTypes.RELEASE_ARTICLE:
+      return {
+        ...state,
+        articles: state.articles.map((item) =>
+          item.id === action.payload.id
+            ? {
+                ...item,
+                claimantId: '',
+                claimantName: '',
+                claimedAt: '',
               }
             : item
         ),
@@ -249,6 +282,9 @@ export function AppProvider({ children }) {
       if (migrated.finalReviewedAt === undefined) migrated.finalReviewedAt = ''
       if (migrated.reviewStage === undefined) migrated.reviewStage = ''
       if (migrated.reviewHistory === undefined) migrated.reviewHistory = []
+      if (migrated.claimantId === undefined) migrated.claimantId = ''
+      if (migrated.claimantName === undefined) migrated.claimantName = ''
+      if (migrated.claimedAt === undefined) migrated.claimedAt = ''
 
       const config = configMap.get(article.category)
       const needTwoLevel = config ? config.requireTwoLevel : false
@@ -500,6 +536,9 @@ export function AppProvider({ children }) {
       finalReviewedAt: '',
       reviewStage,
       reviewHistory: [],
+      claimantId: '',
+      claimantName: '',
+      claimedAt: '',
     }
     const articles = [newArticle, ...state.articles]
     storage.set(STORAGE_KEYS.ARTICLES, articles)
@@ -544,6 +583,9 @@ export function AppProvider({ children }) {
         finalReviewedAt: '',
         reviewStage,
         reviewHistory: [],
+        claimantId: '',
+        claimantName: '',
+        claimedAt: '',
         deleted: false,
       }
     })
@@ -562,10 +604,19 @@ export function AppProvider({ children }) {
     const category = state.categories.find((c) => c.code === (updates.category || article.category))
     const needTwoLevel = isTwoLevelReview(updates.category || article.category)
     let reviewStage = article.reviewStage
+    let claimantId = article.claimantId
+    let claimantName = article.claimantName
+    let claimedAt = article.claimedAt
     if (updates.status === 'pending') {
       reviewStage = needTwoLevel ? 'first_pending' : ''
+      claimantId = ''
+      claimantName = ''
+      claimedAt = ''
     } else if (updates.status === 'draft') {
       reviewStage = ''
+      claimantId = ''
+      claimantName = ''
+      claimedAt = ''
     }
     const updated = {
       ...article,
@@ -573,6 +624,9 @@ export function AppProvider({ children }) {
       categoryName: category ? category.name : article.categoryName,
       updatedAt: formatDate(new Date()),
       reviewStage,
+      claimantId,
+      claimantName,
+      claimedAt,
     }
     const articles = state.articles.map((a) => (a.id === id ? updated : a))
     storage.set(STORAGE_KEYS.ARTICLES, articles)
@@ -722,6 +776,9 @@ export function AppProvider({ children }) {
       finalReviewedAt,
       reviewStage,
       reviewHistory: updatedHistory,
+      claimantId: '',
+      claimantName: '',
+      claimedAt: '',
     }
 
     const articles = state.articles.map((a) => {
@@ -742,6 +799,9 @@ export function AppProvider({ children }) {
           finalReviewedAt,
           reviewStage,
           reviewHistory: updatedHistory,
+          claimantId: '',
+          claimantName: '',
+          claimedAt: '',
         }
       }
       return a
@@ -771,6 +831,84 @@ export function AppProvider({ children }) {
     }
 
     addOperationLog(reviewAction, article.title)
+  }
+
+  const claimArticle = (id) => {
+    const article = state.articles.find((a) => a.id === id)
+    if (!article) return null
+    const currentUser = state.currentUser
+    if (!currentUser) return null
+
+    if (article.claimantId && article.claimantId !== currentUser.id) {
+      return { success: false, message: '该任务已被其他人认领' }
+    }
+
+    if (article.claimantId === currentUser.id) {
+      return { success: false, message: '您已认领该任务' }
+    }
+
+    const now = formatDateTime(new Date())
+    const claimData = {
+      id,
+      claimantId: currentUser.id,
+      claimantName: currentUser.name,
+      claimedAt: now,
+    }
+
+    const articles = state.articles.map((a) =>
+      a.id === id
+        ? {
+            ...a,
+            claimantId: currentUser.id,
+            claimantName: currentUser.name,
+            claimedAt: now,
+          }
+        : a
+    )
+    storage.set(STORAGE_KEYS.ARTICLES, articles)
+    dispatch({ type: actionTypes.CLAIM_ARTICLE, payload: claimData })
+    addOperationLog(OPERATION_ACTIONS.CLAIM_TASK, article.title)
+
+    return { success: true, data: claimData }
+  }
+
+  const releaseArticle = (id, isForce = false) => {
+    const article = state.articles.find((a) => a.id === id)
+    if (!article) return null
+    const currentUser = state.currentUser
+    if (!currentUser) return null
+
+    if (!article.claimantId) {
+      return { success: false, message: '该任务未被认领' }
+    }
+
+    if (!isForce && article.claimantId !== currentUser.id) {
+      return { success: false, message: '只能释放您自己认领的任务' }
+    }
+
+    const releaseData = {
+      id,
+    }
+
+    const articles = state.articles.map((a) =>
+      a.id === id
+        ? {
+            ...a,
+            claimantId: '',
+            claimantName: '',
+            claimedAt: '',
+          }
+        : a
+    )
+    storage.set(STORAGE_KEYS.ARTICLES, articles)
+    dispatch({ type: actionTypes.RELEASE_ARTICLE, payload: releaseData })
+
+    const action = isForce
+      ? OPERATION_ACTIONS.FORCE_RELEASE_TASK
+      : OPERATION_ACTIONS.RELEASE_TASK
+    addOperationLog(action, article.title)
+
+    return { success: true }
   }
 
   const updateReviewFlowConfig = (id, updates) => {
@@ -976,6 +1114,8 @@ export function AppProvider({ children }) {
         restoreArticle,
         permanentDeleteArticle,
         reviewArticle,
+        claimArticle,
+        releaseArticle,
         getArticleById,
         getPublishedArticles,
         getDeletedArticles,
