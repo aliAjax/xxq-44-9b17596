@@ -32,7 +32,7 @@ import {
   paginateArticles,
   getActiveFilterCount,
   resetFilters,
-  highlightText,
+  splitByKeyword,
 } from '../utils/articleFilter'
 
 const PAGE_SIZE = 10
@@ -164,11 +164,6 @@ export default function ArticleList() {
     setShowDetailModal(true)
   }
 
-  const highlightedTitle = (title) => {
-    if (!searchKeyword) return title
-    return highlightText(title, searchKeyword)
-  }
-
   return (
     <AdminLayout>
       <div className="mb-6">
@@ -298,12 +293,22 @@ export default function ArticleList() {
                     }`}
                   >
                     <td className="px-4 py-3">
-                      <div
-                        className="text-sm text-gray-900 font-medium line-clamp-1"
-                        dangerouslySetInnerHTML={{
-                          __html: highlightedTitle(article.title),
-                        }}
-                      />
+                      <div className="text-sm text-gray-900 font-medium line-clamp-1">
+                        {searchKeyword
+                          ? splitByKeyword(article.title, searchKeyword).map((seg, idx) =>
+                              seg.isMatch ? (
+                                <mark
+                                  key={idx}
+                                  className="bg-yellow-200 text-yellow-900 px-0.5 rounded"
+                                >
+                                  {seg.text}
+                                </mark>
+                              ) : (
+                                <span key={idx}>{seg.text}</span>
+                              )
+                            )
+                          : article.title}
+                      </div>
                       <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-2">
                         <span>{article.department}</span>
                         {article.attachmentName && (
@@ -453,12 +458,22 @@ export default function ArticleList() {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
               <div>
-                <h2
-                  className="text-xl font-bold text-gray-900 mb-3"
-                  dangerouslySetInnerHTML={{
-                    __html: highlightedTitle(detailArticle.title),
-                  }}
-                />
+                <h2 className="text-xl font-bold text-gray-900 mb-3">
+                  {searchKeyword
+                    ? splitByKeyword(detailArticle.title, searchKeyword).map((seg, idx) =>
+                        seg.isMatch ? (
+                          <mark
+                            key={idx}
+                            className="bg-yellow-200 text-yellow-900 px-0.5 rounded"
+                          >
+                            {seg.text}
+                          </mark>
+                        ) : (
+                          <span key={idx}>{seg.text}</span>
+                        )
+                      )
+                    : detailArticle.title}
+                </h2>
                 <div className="flex items-center gap-3 flex-wrap">
                   <StatusTag
                     status={detailArticle.status}

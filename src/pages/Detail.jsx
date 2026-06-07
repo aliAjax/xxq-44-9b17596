@@ -4,7 +4,7 @@ import { ArrowLeft, Calendar, Building, FolderOpen, Paperclip, Download, Clock }
 import FrontendLayout from '../components/FrontendLayout'
 import VersionHistoryModal from '../components/VersionHistoryModal'
 import { useApp } from '../context/useApp'
-import { highlightHtmlContent, highlightText } from '../utils/articleFilter'
+import { highlightHtmlContent, splitByKeyword } from '../utils/articleFilter'
 
 export default function Detail() {
   const { id } = useParams()
@@ -14,9 +14,9 @@ export default function Detail() {
   const [showVersionModal, setShowVersionModal] = useState(false)
   const article = getArticleById(id)
 
-  const highlightedTitle = useMemo(() => {
-    if (!article || !highlightKeyword) return article?.title || ''
-    return highlightText(article.title, highlightKeyword)
+  const titleSegments = useMemo(() => {
+    if (!article || !highlightKeyword) return null
+    return splitByKeyword(article.title, highlightKeyword)
   }, [article, highlightKeyword])
 
   const highlightedContent = useMemo(() => {
@@ -62,10 +62,22 @@ export default function Detail() {
 
       <article className="bg-white rounded-lg shadow-sm">
         <div className="p-8 border-b border-gray-100">
-          <h1
-            className="text-2xl font-bold text-gray-900 mb-4 leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: highlightedTitle }}
-          />
+          <h1 className="text-2xl font-bold text-gray-900 mb-4 leading-relaxed">
+            {titleSegments
+              ? titleSegments.map((seg, idx) =>
+                  seg.isMatch ? (
+                    <mark
+                      key={idx}
+                      className="bg-yellow-200 text-yellow-900 px-0.5 rounded"
+                    >
+                      {seg.text}
+                    </mark>
+                  ) : (
+                    <span key={idx}>{seg.text}</span>
+                  )
+                )
+              : article.title}
+          </h1>
           <div className="flex items-center gap-6 text-sm text-gray-500">
             <span className="flex items-center gap-1.5">
               <FolderOpen className="w-4 h-4" />

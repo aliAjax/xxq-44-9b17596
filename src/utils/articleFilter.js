@@ -126,13 +126,48 @@ export const paginateArticles = (articles, currentPage, pageSize) => {
   }
 }
 
+export const escapeHtml = (text) => {
+  if (!text) return ''
+  const div = document.createElement('div')
+  div.textContent = text
+  return div.innerHTML
+}
+
+export const splitByKeyword = (text, keyword) => {
+  if (!keyword || !text) return [{ text: text || '', isMatch: false }]
+
+  const lowerText = text.toLowerCase()
+  const lowerKw = keyword.toLowerCase()
+  const kwLength = keyword.length
+  const segments = []
+  let lastIndex = 0
+
+  while (true) {
+    const index = lowerText.indexOf(lowerKw, lastIndex)
+    if (index === -1) {
+      if (lastIndex < text.length) {
+        segments.push({ text: text.slice(lastIndex), isMatch: false })
+      }
+      break
+    }
+    if (index > lastIndex) {
+      segments.push({ text: text.slice(lastIndex, index), isMatch: false })
+    }
+    segments.push({ text: text.slice(index, index + kwLength), isMatch: true })
+    lastIndex = index + kwLength
+  }
+
+  return segments
+}
+
 export const highlightText = (text, keyword) => {
-  if (!keyword || !text) return text
+  if (!keyword || !text) return escapeHtml(text)
 
-  const escaped = escapeRegExp(keyword)
-  const regex = new RegExp(`(${escaped})`, 'gi')
+  const safeText = escapeHtml(text)
+  const escapedKw = escapeRegExp(escapeHtml(keyword))
+  const regex = new RegExp(`(${escapedKw})`, 'gi')
 
-  return text.replace(regex, '<mark class="bg-yellow-200 text-yellow-900 px-0.5 rounded">$1</mark>')
+  return safeText.replace(regex, '<mark class="bg-yellow-200 text-yellow-900 px-0.5 rounded">$1</mark>')
 }
 
 export const highlightHtmlContent = (html, keyword) => {
