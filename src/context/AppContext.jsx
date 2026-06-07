@@ -638,6 +638,9 @@ export function AppProvider({ children }) {
     } else if (updates.status === 'draft') {
       addArticleVersion(updated, VERSION_TYPES.SAVE_DRAFT)
       addOperationLog(OPERATION_ACTIONS.SAVE_DRAFT, updated.title)
+    } else if (updates.publishDate !== undefined && updates.publishDate !== article.publishDate) {
+      addArticleVersion(updated, VERSION_TYPES.SCHEDULE_PUBLISH_DATE)
+      addOperationLog(OPERATION_ACTIONS.SCHEDULE_PUBLISH_DATE, updated.title)
     }
 
     return updated

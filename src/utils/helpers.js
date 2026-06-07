@@ -19,6 +19,7 @@ export const OPERATION_ACTIONS = {
   CLAIM_TASK: 'claim_task',
   RELEASE_TASK: 'release_task',
   FORCE_RELEASE_TASK: 'force_release_task',
+  SCHEDULE_PUBLISH_DATE: 'schedule_publish_date',
 }
 
 export const VERSION_TYPES = {
@@ -32,6 +33,7 @@ export const VERSION_TYPES = {
   FINAL_REVIEW_REJECT: 'final_review_reject',
   INITIAL: 'initial',
   RESTORE: 'restore',
+  SCHEDULE_PUBLISH_DATE: 'schedule_publish_date',
 }
 
 export const getVersionTypeText = (type) => {
@@ -46,6 +48,7 @@ export const getVersionTypeText = (type) => {
     [VERSION_TYPES.FINAL_REVIEW_REJECT]: '终审退回',
     [VERSION_TYPES.INITIAL]: '初始版本',
     [VERSION_TYPES.RESTORE]: '恢复版本',
+    [VERSION_TYPES.SCHEDULE_PUBLISH_DATE]: '调整发布日期',
   }
   return typeMap[type] || type
 }
@@ -62,6 +65,7 @@ export const getVersionTypeColor = (type) => {
     [VERSION_TYPES.FINAL_REVIEW_REJECT]: 'bg-red-100 text-red-700',
     [VERSION_TYPES.INITIAL]: 'bg-purple-100 text-purple-700',
     [VERSION_TYPES.RESTORE]: 'bg-emerald-100 text-emerald-700',
+    [VERSION_TYPES.SCHEDULE_PUBLISH_DATE]: 'bg-amber-100 text-amber-700',
   }
   return colorMap[type] || 'bg-gray-100 text-gray-700'
 }
@@ -84,6 +88,7 @@ export const getActionText = (action) => {
     [OPERATION_ACTIONS.CLAIM_TASK]: '认领任务',
     [OPERATION_ACTIONS.RELEASE_TASK]: '释放任务',
     [OPERATION_ACTIONS.FORCE_RELEASE_TASK]: '强制释放任务',
+    [OPERATION_ACTIONS.SCHEDULE_PUBLISH_DATE]: '调整发布日期',
   }
   return actionMap[action] || action
 }
@@ -106,6 +111,7 @@ export const getActionColor = (action) => {
     [OPERATION_ACTIONS.CLAIM_TASK]: 'bg-cyan-100 text-cyan-700',
     [OPERATION_ACTIONS.RELEASE_TASK]: 'bg-amber-100 text-amber-700',
     [OPERATION_ACTIONS.FORCE_RELEASE_TASK]: 'bg-rose-100 text-rose-700',
+    [OPERATION_ACTIONS.SCHEDULE_PUBLISH_DATE]: 'bg-amber-100 text-amber-700',
   }
   return colorMap[action] || 'bg-gray-100 text-gray-700'
 }
@@ -274,7 +280,7 @@ export const groupByDate = (articles) => {
 }
 
 export const getPendingWithoutDate = (articles) => {
-  return articles.filter((a) => !a.deleted && a.status === 'pending' && !a.publishDate)
+  return articles.filter((a) => !a.deleted && a.status !== 'rejected' && !a.publishDate && a.status !== 'published')
 }
 
 export const getCalendarDays = (year, month) => {
@@ -320,7 +326,7 @@ export const getCalendarDays = (year, month) => {
 
 export const getStatusCountByDate = (articles, dateStr) => {
   const dayArticles = articles.filter(
-    (a) => !a.deleted && a.publishDate && formatDate(a.publishDate) === dateStr
+    (a) => !a.deleted && a.status !== 'rejected' && a.publishDate && formatDate(a.publishDate) === dateStr
   )
   return {
     total: dayArticles.length,
@@ -328,6 +334,7 @@ export const getStatusCountByDate = (articles, dateStr) => {
     pending: dayArticles.filter((a) => a.status === 'pending').length,
     rejected: dayArticles.filter((a) => a.status === 'rejected').length,
     draft: dayArticles.filter((a) => a.status === 'draft').length,
+    first_reviewed: dayArticles.filter((a) => a.status === 'first_reviewed').length,
     articles: dayArticles,
   }
 }
