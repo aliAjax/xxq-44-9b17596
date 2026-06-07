@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate, History, Clock, GitCompare, Hand, Unlock, RotateCcw, ArrowRight, FileText, FolderOpen, Building, Calendar, Paperclip, Link } from 'lucide-react'
+import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate, History, Clock, GitCompare, Hand, Unlock, RotateCcw, ArrowRight, FileText, FolderOpen, Building } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
@@ -105,17 +105,11 @@ export default function ReviewList() {
   )
 
   const filteredRollbackRequests = useMemo(() => {
-    const filters = { keyword }
+    const all = getRollbackRequests({ keyword })
     if (rollbackTab === 'pending') {
-      filters.status = ROLLBACK_STATUS.PENDING
-    } else if (rollbackTab === 'reviewed') {
-      filters.status = ''
+      return all.filter((r) => r.status === ROLLBACK_STATUS.PENDING)
     }
-    const all = getRollbackRequests(filters)
-    if (rollbackTab === 'reviewed') {
-      return all.filter((r) => r.status !== ROLLBACK_STATUS.PENDING)
-    }
-    return all
+    return all.filter((r) => r.status !== ROLLBACK_STATUS.PENDING)
   }, [getRollbackRequests, rollbackTab, keyword])
 
   const pendingRollbackCount = useMemo(() => {
