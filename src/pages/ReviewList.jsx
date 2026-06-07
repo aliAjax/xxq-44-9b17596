@@ -6,16 +6,17 @@ import Pagination from '../components/Pagination'
 import RejectTemplateManager from '../components/RejectTemplateManager'
 import VersionHistoryModal from '../components/VersionHistoryModal'
 import { useApp } from '../context/useApp'
-import { getReviewStageText, getReviewStageColor, isArticleClaimed, isArticleClaimedByUser, getRollbackStatusText, getRollbackStatusColor, ROLLBACK_STATUS } from '../utils/helpers'
+import { getReviewStageText, getReviewStageColor, isArticleClaimed, isArticleClaimedByUser, getRollbackStatusText, getRollbackStatusColor, ROLLBACK_STATUS, TIMEOUT_STATUS, getTimeoutStatusText, formatRemainingTime } from '../utils/helpers'
 
 const PAGE_SIZE = 10
 
 export default function ReviewList() {
-  const { state, reviewArticle, isTwoLevelReview, claimArticle, releaseArticle, getRollbackRequests, approveRollbackRequest, rejectRollbackRequest } = useApp()
+  const { state, reviewArticle, isTwoLevelReview, claimArticle, releaseArticle, getRollbackRequests, approveRollbackRequest, rejectRollbackRequest, getTimeoutInfo } = useApp()
   const currentUser = state.currentUser
   const [activeTab, setActiveTab] = useState('pending')
   const [currentPage, setCurrentPage] = useState(1)
   const [keyword, setKeyword] = useState('')
+  const [timeoutFilter, setTimeoutFilter] = useState('all')
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectArticleId, setRejectArticleId] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
@@ -85,15 +86,27 @@ export default function ReviewList() {
       result = result.filter((a) => a.title.toLowerCase().includes(kw))
     }
 
+    if (activeTab === 'pending' && timeoutFilter !== 'all') {
+      result = result.filter((a) => {
+        const info = getTimeoutInfo(a)
+        return info.status === timeoutFilter
+      })
+    }
+
     result.sort((a, b) => {
       if (activeTab === 'pending') {
+        const infoA = getTimeoutInfo(a)
+        const infoB = getTimeoutInfo(b)
+        const isOverdueA = infoA.status === TIMEOUT_STATUS.OVERDUE ? 0 : infoA.status === TIMEOUT_STATUS.WARNING ? 1 : 2
+        const isOverdueB = infoB.status === TIMEOUT_STATUS.OVERDUE ? 0 : infoB.status === TIMEOUT_STATUS.WARNING ? 1 : 2
+        if (isOverdueA !== isOverdueB) return isOverdueA - isOverdueB
         return new Date(b.createdAt) - new Date(a.createdAt)
       }
       return new Date(b.reviewedAt) - new Date(a.reviewedAt)
     })
 
     return result
-  }, [state.articles, activeTab, keyword, isArticlePendingForUser])
+  }, [state.articles, activeTab, keyword, timeoutFilter, isArticlePendingForUser, getTimeoutInfo])
 
   const pendingCount = useMemo(() => {
     return state.articles.filter((a) => !a.deleted && isArticlePendingForUser(a)).length
@@ -416,30 +429,59 @@ export default function ReviewList() {
 
         {activeTab !== 'rollback' && (
           <div className="p-4 border-b border-gray-100">
-            <div className="relative w-64">
-              <input
-                type="text"
-                value={keyword}
-                onChange={(e) => {
-                  setKeyword(e.target.value)
-                  setCurrentPage(1)
-                }}
-                placeholder="搜索标题..."
-                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="relative w-64">
+                <input
+                  type="text"
+                  value={keyword}
+                  onChange={(e) => {
+                    setKeyword(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  placeholder="搜索标题..."
+                  className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
-              </svg>
+                <svg
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
+
+              {activeTab === 'pending' && (
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500 mr-1">时效筛选：</span>
+                  {[
+                    { key: 'all', label: '全部' },
+                    { key: TIMEOUT_STATUS.OVERDUE, label: '已超时' },
+                    { key: TIMEOUT_STATUS.WARNING, label: '即将超时' },
+                    { key: TIMEOUT_STATUS.NORMAL, label: '正常' },
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      onClick={() => {
+                        setTimeoutFilter(item.key)
+                        setCurrentPage(1)
+                      }}
+                      className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
+                        timeoutFilter === item.key
+                          ? 'bg-primary-500 text-white shadow-sm font-medium'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -523,6 +565,11 @@ export default function ReviewList() {
                     状态
                   </th>
                   {activeTab === 'pending' && (
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-36">
+                      时效
+                    </th>
+                  )}
+                  {activeTab === 'pending' && (
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-32">
                       认领状态
                     </th>
@@ -565,6 +612,33 @@ export default function ReviewList() {
                       <td className="px-4 py-3">
                         <StatusTag status={article.status} reviewStage={article.reviewStage} />
                       </td>
+                      {activeTab === 'pending' && (
+                        <td className="px-4 py-3">
+                          {(() => {
+                            const info = getTimeoutInfo(article)
+                            return (
+                              <div>
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                    info.status === TIMEOUT_STATUS.OVERDUE
+                                      ? 'bg-red-100 text-red-700'
+                                      : info.status === TIMEOUT_STATUS.WARNING
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-green-100 text-green-700'
+                                  }`}
+                                >
+                                  {getTimeoutStatusText(info.status)}
+                                </span>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {info.status === TIMEOUT_STATUS.OVERDUE
+                                    ? `已超时 ${formatRemainingTime(Math.abs(info.remainingHours))}`
+                                    : `剩余 ${formatRemainingTime(info.remainingHours)}`}
+                                </div>
+                              </div>
+                            )
+                          })()}
+                        </td>
+                      )}
                       {activeTab === 'pending' && (
                         <td className="px-4 py-3">
                           {isArticleClaimed(article) ? (
@@ -1192,6 +1266,17 @@ export default function ReviewList() {
                           }`}>
                             {item.action === 'pass' ? '通过' : '退回'}
                           </span>
+                          {item.isTimeoutWhenReviewed && (
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded ${
+                                item.timeoutStatusWhenReviewed === TIMEOUT_STATUS.OVERDUE
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-amber-100 text-amber-700'
+                              }`}
+                            >
+                              {item.timeoutStatusWhenReviewed === TIMEOUT_STATUS.OVERDUE ? '已超时处理' : '即将超时处理'}
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
                           {item.reviewTime}

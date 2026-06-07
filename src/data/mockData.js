@@ -37,6 +37,12 @@ export const reviewFlowConfigs = [
     categoryCode: 'policy',
     categoryName: '政策法规',
     requireTwoLevel: false,
+    timeoutConfig: {
+      singleReviewHours: 24,
+      firstReviewHours: 24,
+      finalReviewHours: 24,
+      warningHours: 4,
+    },
     validationRules: {
       requireAttachment: false,
       minContentLength: 0,
@@ -49,6 +55,12 @@ export const reviewFlowConfigs = [
     categoryCode: 'notice',
     categoryName: '通知公告',
     requireTwoLevel: false,
+    timeoutConfig: {
+      singleReviewHours: 12,
+      firstReviewHours: 12,
+      finalReviewHours: 12,
+      warningHours: 2,
+    },
     validationRules: {
       requireAttachment: false,
       minContentLength: 0,
@@ -61,6 +73,12 @@ export const reviewFlowConfigs = [
     categoryCode: 'plan',
     categoryName: '规划计划',
     requireTwoLevel: false,
+    timeoutConfig: {
+      singleReviewHours: 48,
+      firstReviewHours: 48,
+      finalReviewHours: 48,
+      warningHours: 8,
+    },
     validationRules: {
       requireAttachment: false,
       minContentLength: 0,
@@ -73,6 +91,12 @@ export const reviewFlowConfigs = [
     categoryCode: 'finance',
     categoryName: '财政信息',
     requireTwoLevel: true,
+    timeoutConfig: {
+      singleReviewHours: 24,
+      firstReviewHours: 24,
+      finalReviewHours: 48,
+      warningHours: 6,
+    },
     validationRules: {
       requireAttachment: false,
       minContentLength: 0,
@@ -85,6 +109,12 @@ export const reviewFlowConfigs = [
     categoryCode: 'personnel',
     categoryName: '人事信息',
     requireTwoLevel: false,
+    timeoutConfig: {
+      singleReviewHours: 24,
+      firstReviewHours: 24,
+      finalReviewHours: 24,
+      warningHours: 4,
+    },
     validationRules: {
       requireAttachment: false,
       minContentLength: 0,
@@ -97,6 +127,12 @@ export const reviewFlowConfigs = [
     categoryCode: 'emergency',
     categoryName: '应急管理',
     requireTwoLevel: false,
+    timeoutConfig: {
+      singleReviewHours: 4,
+      firstReviewHours: 4,
+      finalReviewHours: 4,
+      warningHours: 1,
+    },
     validationRules: {
       requireAttachment: false,
       minContentLength: 0,
@@ -109,6 +145,12 @@ export const reviewFlowConfigs = [
     categoryCode: 'keyarea',
     categoryName: '重点领域',
     requireTwoLevel: true,
+    timeoutConfig: {
+      singleReviewHours: 24,
+      firstReviewHours: 24,
+      finalReviewHours: 24,
+      warningHours: 4,
+    },
     validationRules: {
       requireAttachment: false,
       minContentLength: 0,

@@ -438,6 +438,169 @@ export const canUserClaimArticle = (article, userId, _userRole, isArticlePending
   return true
 }
 
+export const TIMEOUT_STATUS = {
+  NORMAL: 'normal',
+  WARNING: 'warning',
+  OVERDUE: 'overdue',
+}
+
+export const REVIEW_STAGE_TYPE = {
+  SINGLE: 'single',
+  FIRST: 'first',
+  FINAL: 'final',
+}
+
+export const DEFAULT_TIMEOUT_CONFIG = {
+  singleReviewHours: 24,
+  firstReviewHours: 24,
+  finalReviewHours: 24,
+  warningHours: 4,
+}
+
+export const getTimeoutConfig = (reviewFlowConfig) => {
+  if (!reviewFlowConfig || !reviewFlowConfig.timeoutConfig) {
+    return { ...DEFAULT_TIMEOUT_CONFIG }
+  }
+  return {
+    ...DEFAULT_TIMEOUT_CONFIG,
+    ...reviewFlowConfig.timeoutConfig,
+  }
+}
+
+export const getTimeoutStatusText = (status) => {
+  const statusMap = {
+    [TIMEOUT_STATUS.NORMAL]: '正常',
+    [TIMEOUT_STATUS.WARNING]: '即将超时',
+    [TIMEOUT_STATUS.OVERDUE]: '已超时',
+  }
+  return statusMap[status] || status
+}
+
+export const getTimeoutStatusColor = (status) => {
+  const colorMap = {
+    [TIMEOUT_STATUS.NORMAL]: 'bg-green-100 text-green-700',
+    [TIMEOUT_STATUS.WARNING]: 'bg-amber-100 text-amber-700',
+    [TIMEOUT_STATUS.OVERDUE]: 'bg-red-100 text-red-700',
+  }
+  return colorMap[status] || 'bg-gray-100 text-gray-700'
+}
+
+const parseDateTime = (dateTimeStr) => {
+  if (!dateTimeStr) return null
+  const date = new Date(dateTimeStr)
+  if (isNaN(date.getTime())) return null
+  return date
+}
+
+export const calculateTimeoutInfo = (article, reviewFlowConfig, now = new Date()) => {
+  if (!article) {
+    return { status: TIMEOUT_STATUS.NORMAL, remainingHours: 0, totalHours: 0, deadline: null, startTime: null }
+  }
+
+  const timeoutConfig = getTimeoutConfig(reviewFlowConfig)
+  const status = article.status
+  const reviewStage = article.reviewStage || ''
+  const needTwoLevel = reviewFlowConfig ? reviewFlowConfig.requireTwoLevel : false
+
+  let stageType = ''
+  let startTime = null
+  let totalHours = 0
+
+  if (status === 'pending') {
+    if (needTwoLevel && reviewStage === 'first_pending') {
+      stageType = REVIEW_STAGE_TYPE.FIRST
+      totalHours = timeoutConfig.firstReviewHours
+    } else {
+      stageType = REVIEW_STAGE_TYPE.SINGLE
+      totalHours = timeoutConfig.singleReviewHours
+    }
+    if (article.firstReviewStartTime) {
+      startTime = parseDateTime(article.firstReviewStartTime)
+    }
+    if (!startTime && article.claimedAt) {
+      startTime = parseDateTime(article.claimedAt)
+    }
+    if (!startTime && article.submittedAt) {
+      startTime = parseDateTime(article.submittedAt)
+    }
+    if (!startTime && article.createdAt) {
+      startTime = parseDateTime(article.createdAt)
+    }
+  } else if (status === 'first_reviewed') {
+    stageType = REVIEW_STAGE_TYPE.FINAL
+    totalHours = timeoutConfig.finalReviewHours
+    if (article.finalReviewStartTime) {
+      startTime = parseDateTime(article.finalReviewStartTime)
+    }
+    if (!startTime && article.firstReviewedAt) {
+      startTime = parseDateTime(article.firstReviewedAt)
+    }
+  }
+
+  if (!startTime || totalHours <= 0) {
+    return {
+      status: TIMEOUT_STATUS.NORMAL,
+      remainingHours: 0,
+      totalHours,
+      deadline: null,
+      startTime: startTime ? startTime.toISOString() : null,
+      stageType,
+    }
+  }
+
+  const deadline = new Date(startTime.getTime() + totalHours * 60 * 60 * 1000)
+  const diffMs = deadline.getTime() - now.getTime()
+  const diffHours = diffMs / (1000 * 60 * 60)
+
+  let timeoutStatus = TIMEOUT_STATUS.NORMAL
+  if (diffMs <= 0) {
+    timeoutStatus = TIMEOUT_STATUS.OVERDUE
+  } else if (diffHours <= timeoutConfig.warningHours) {
+    timeoutStatus = TIMEOUT_STATUS.WARNING
+  }
+
+  return {
+    status: timeoutStatus,
+    remainingHours: Math.max(0, diffHours),
+    totalHours,
+    deadline: deadline.toISOString(),
+    startTime: startTime.toISOString(),
+    stageType,
+  }
+}
+
+export const formatRemainingTime = (remainingHours) => {
+  if (remainingHours <= 0) return '已超时'
+  if (remainingHours < 1) {
+    const minutes = Math.ceil(remainingHours * 60)
+    return `剩余 ${minutes} 分钟`
+  }
+  if (remainingHours < 24) {
+    const hours = Math.floor(remainingHours)
+    const minutes = Math.round((remainingHours - hours) * 60)
+    if (minutes === 0) {
+      return `剩余 ${hours} 小时`
+    }
+    return `剩余 ${hours}小时${minutes}分`
+  }
+  const days = Math.floor(remainingHours / 24)
+  const hours = Math.round(remainingHours - days * 24)
+  if (hours === 0) {
+    return `剩余 ${days} 天`
+  }
+  return `剩余 ${days}天${hours}小时`
+}
+
+export const isArticleOverdue = (article, reviewFlowConfig) => {
+  const info = calculateTimeoutInfo(article, reviewFlowConfig)
+  return info.status === TIMEOUT_STATUS.OVERDUE
+}
+
+export const isArticleWarning = (article, reviewFlowConfig) => {
+  const info = calculateTimeoutInfo(article, reviewFlowConfig)
+  return info.status === TIMEOUT_STATUS.WARNING
+}
+
 export const DEFAULT_VALIDATION_RULES = {
   requireAttachment: false,
   minContentLength: 0,

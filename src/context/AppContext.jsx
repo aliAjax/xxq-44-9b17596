@@ -10,7 +10,10 @@ import {
   ROLLBACK_STATUS,
   getVersionTypeText,
   DEFAULT_VALIDATION_RULES,
+  DEFAULT_TIMEOUT_CONFIG,
   getValidationRules,
+  calculateTimeoutInfo,
+  TIMEOUT_STATUS,
   validateArticle,
 } from '../utils/helpers'
 import { AppContext } from './useApp'
@@ -412,20 +415,24 @@ export function AppProvider({ children }) {
       : 0
 
     const migratedConfigs = existingConfigs.map((config) => {
-      if (!config.validationRules) {
-        return {
-          ...config,
-          validationRules: { ...DEFAULT_VALIDATION_RULES },
+      const result = { ...config }
+      if (!result.validationRules) {
+        result.validationRules = { ...DEFAULT_VALIDATION_RULES }
+      } else {
+        result.validationRules = {
+          ...DEFAULT_VALIDATION_RULES,
+          ...result.validationRules,
         }
       }
-      const mergedRules = {
-        ...DEFAULT_VALIDATION_RULES,
-        ...config.validationRules,
+      if (!result.timeoutConfig) {
+        result.timeoutConfig = { ...DEFAULT_TIMEOUT_CONFIG }
+      } else {
+        result.timeoutConfig = {
+          ...DEFAULT_TIMEOUT_CONFIG,
+          ...result.timeoutConfig,
+        }
       }
-      return {
-        ...config,
-        validationRules: mergedRules,
-      }
+      return result
     })
 
     const newConfigs = [...migratedConfigs]
@@ -442,6 +449,9 @@ export function AppProvider({ children }) {
           validationRules: defaultConfig?.validationRules
             ? { ...defaultConfig.validationRules }
             : { ...DEFAULT_VALIDATION_RULES },
+          timeoutConfig: defaultConfig?.timeoutConfig
+            ? { ...defaultConfig.timeoutConfig }
+            : { ...DEFAULT_TIMEOUT_CONFIG },
         })
       }
     })
@@ -477,6 +487,10 @@ export function AppProvider({ children }) {
       if (migrated.lastRejectTemplateId === undefined) migrated.lastRejectTemplateId = ''
       if (migrated.lastRejectTemplateTitle === undefined) migrated.lastRejectTemplateTitle = ''
       if (migrated.lastRectificationRemark === undefined) migrated.lastRectificationRemark = ''
+      if (migrated.submittedAt === undefined) migrated.submittedAt = ''
+      if (migrated.firstReviewStartTime === undefined) migrated.firstReviewStartTime = ''
+      if (migrated.finalReviewStartTime === undefined) migrated.finalReviewStartTime = ''
+      if (migrated.timeoutInfo === undefined) migrated.timeoutInfo = null
 
       const hasHistory = migrated.reviewHistory && migrated.reviewHistory.length > 0
       if (hasHistory) {
@@ -847,6 +861,10 @@ export function AppProvider({ children }) {
       lastRejectTemplateId: '',
       lastRejectTemplateTitle: '',
       lastRectificationRemark: '',
+      submittedAt: article.status === 'pending' ? formatDateTime(new Date()) : '',
+      firstReviewStartTime: '',
+      finalReviewStartTime: '',
+      timeoutInfo: null,
     }
     const articles = [newArticle, ...state.articles]
     storage.set(STORAGE_KEYS.ARTICLES, articles)
@@ -900,6 +918,10 @@ export function AppProvider({ children }) {
         lastRejectTemplateId: '',
         lastRejectTemplateTitle: '',
         lastRectificationRemark: '',
+        submittedAt: article.status === 'pending' ? now : '',
+        firstReviewStartTime: '',
+        finalReviewStartTime: '',
+        timeoutInfo: null,
         deleted: false,
       }
     })
@@ -934,6 +956,9 @@ export function AppProvider({ children }) {
     let lastRectificationRemark = article.lastRectificationRemark || ''
     let lastRejectTemplateId = article.lastRejectTemplateId || ''
     let lastRejectTemplateTitle = article.lastRejectTemplateTitle || ''
+    let submittedAt = article.submittedAt || ''
+    let firstReviewStartTime = article.firstReviewStartTime || ''
+    let finalReviewStartTime = article.finalReviewStartTime || ''
 
     const isResubmit = updates.status === 'pending' && article.status === 'rejected'
 
@@ -942,6 +967,9 @@ export function AppProvider({ children }) {
       claimantId = ''
       claimantName = ''
       claimedAt = ''
+      submittedAt = formatDateTime(new Date())
+      firstReviewStartTime = ''
+      finalReviewStartTime = ''
       if (isResubmit) {
         rectificationCount = rectificationCount + 1
         lastRectificationRemark = extra.rectificationRemark || ''
@@ -953,6 +981,8 @@ export function AppProvider({ children }) {
       claimantId = ''
       claimantName = ''
       claimedAt = ''
+      firstReviewStartTime = ''
+      finalReviewStartTime = ''
     }
 
     const updated = {
@@ -969,6 +999,9 @@ export function AppProvider({ children }) {
       lastRectificationRemark,
       lastRejectTemplateId,
       lastRejectTemplateTitle,
+      submittedAt,
+      firstReviewStartTime,
+      finalReviewStartTime,
     }
     const articles = state.articles.map((a) => (a.id === id ? updated : a))
     storage.set(STORAGE_KEYS.ARTICLES, articles)
@@ -1058,6 +1091,16 @@ export function AppProvider({ children }) {
     let historyAction = ''
     let lastRejectTemplateId = article.lastRejectTemplateId || ''
     let lastRejectTemplateTitle = article.lastRejectTemplateTitle || ''
+    let firstReviewStartTime = article.firstReviewStartTime || ''
+    let finalReviewStartTime = article.finalReviewStartTime || ''
+    let submittedAt = article.submittedAt || ''
+    let isTimeoutWhenReviewed = false
+    let timeoutStatusWhenReviewed = ''
+
+    const reviewFlowConfig = getReviewFlowConfig(article.category)
+    const timeoutInfoBefore = calculateTimeoutInfo(article, reviewFlowConfig, new Date())
+    isTimeoutWhenReviewed = timeoutInfoBefore.status === TIMEOUT_STATUS.OVERDUE || timeoutInfoBefore.status === TIMEOUT_STATUS.WARNING
+    timeoutStatusWhenReviewed = timeoutInfoBefore.status
 
     if (!needTwoLevel) {
       firstReviewerId = currentUser.id
@@ -1069,6 +1112,8 @@ export function AppProvider({ children }) {
         : OPERATION_ACTIONS.REVIEW_REJECT
       historyStage = 'single'
       historyAction = status === 'published' ? 'pass' : 'reject'
+      firstReviewStartTime = ''
+      finalReviewStartTime = ''
     } else {
       if (currentUser.role === 'reviewer') {
         firstReviewerId = currentUser.id
@@ -1079,11 +1124,14 @@ export function AppProvider({ children }) {
           reviewAction = OPERATION_ACTIONS.FIRST_REVIEW_PASS
           historyStage = 'first'
           historyAction = 'pass'
+          finalReviewStartTime = now
         } else if (status === 'rejected') {
           reviewStage = 'first_rejected'
           reviewAction = OPERATION_ACTIONS.FIRST_REVIEW_REJECT
           historyStage = 'first'
           historyAction = 'reject'
+          firstReviewStartTime = ''
+          finalReviewStartTime = ''
         }
       } else if (currentUser.role === 'senior_reviewer') {
         finalReviewerId = currentUser.id
@@ -1094,11 +1142,15 @@ export function AppProvider({ children }) {
           reviewAction = OPERATION_ACTIONS.FINAL_REVIEW_PASS
           historyStage = 'final'
           historyAction = 'pass'
+          firstReviewStartTime = ''
+          finalReviewStartTime = ''
         } else if (status === 'rejected') {
           reviewStage = 'final_rejected'
           reviewAction = OPERATION_ACTIONS.FINAL_REVIEW_REJECT
           historyStage = 'final'
           historyAction = 'reject'
+          firstReviewStartTime = ''
+          finalReviewStartTime = ''
         }
       }
     }
@@ -1121,6 +1173,8 @@ export function AppProvider({ children }) {
       rejectTemplateId: status === 'rejected' ? (options.rejectTemplateId || '') : '',
       rejectTemplateTitle: status === 'rejected' ? (options.rejectTemplateTitle || '') : '',
       rectificationRemark: article.lastRectificationRemark || '',
+      isTimeoutWhenReviewed: isTimeoutWhenReviewed,
+      timeoutStatusWhenReviewed: timeoutStatusWhenReviewed,
     }
 
     const updatedHistory = [...(article.reviewHistory || []), historyItem]
@@ -1146,6 +1200,9 @@ export function AppProvider({ children }) {
       claimedAt: '',
       lastRejectTemplateId,
       lastRejectTemplateTitle,
+      firstReviewStartTime,
+      finalReviewStartTime,
+      submittedAt,
     }
 
     const articles = state.articles.map((a) => {
@@ -1171,6 +1228,9 @@ export function AppProvider({ children }) {
           claimedAt: '',
           lastRejectTemplateId,
           lastRejectTemplateTitle,
+          firstReviewStartTime,
+          finalReviewStartTime,
+          submittedAt,
         }
       }
       return a
@@ -1224,11 +1284,26 @@ export function AppProvider({ children }) {
     }
 
     const now = formatDateTime(new Date())
+    let firstReviewStartTime = article.firstReviewStartTime || ''
+    let finalReviewStartTime = article.finalReviewStartTime || ''
+
+    if (article.status === 'pending') {
+      if (!firstReviewStartTime) {
+        firstReviewStartTime = now
+      }
+    } else if (article.status === 'first_reviewed') {
+      if (!finalReviewStartTime) {
+        finalReviewStartTime = now
+      }
+    }
+
     const claimData = {
       id,
       claimantId: currentUser.id,
       claimantName: currentUser.name,
       claimedAt: now,
+      firstReviewStartTime,
+      finalReviewStartTime,
     }
 
     const articles = state.articles.map((a) =>
@@ -1238,6 +1313,8 @@ export function AppProvider({ children }) {
             claimantId: currentUser.id,
             claimantName: currentUser.name,
             claimedAt: now,
+            firstReviewStartTime,
+            finalReviewStartTime,
           }
         : a
     )
@@ -1757,6 +1834,7 @@ export function AppProvider({ children }) {
         categoryName: newCategory.name,
         requireTwoLevel: false,
         validationRules: { ...DEFAULT_VALIDATION_RULES },
+        timeoutConfig: { ...DEFAULT_TIMEOUT_CONFIG },
       }
       const allConfigs = [...existingConfigs, newConfig]
       storage.set(STORAGE_KEYS.REVIEW_FLOW_CONFIGS, allConfigs)
@@ -1866,6 +1944,10 @@ export function AppProvider({ children }) {
         lastRejectTemplateId: '',
         lastRejectTemplateTitle: '',
         lastRectificationRemark: '',
+        submittedAt: article.status === 'pending' ? now : '',
+        firstReviewStartTime: '',
+        finalReviewStartTime: '',
+        timeoutInfo: null,
         deleted: false,
       }
     })
@@ -1887,6 +1969,44 @@ export function AppProvider({ children }) {
     }
 
     return newArticles
+  }
+
+  const getTimeoutInfo = (article) => {
+    const config = getReviewFlowConfig(article?.category)
+    return calculateTimeoutInfo(article, config, new Date())
+  }
+
+  const getTimeoutStatsForUser = (isArticlePendingForUser) => {
+    const pendingArticles = state.articles.filter((a) => !a.deleted && isArticlePendingForUser(a))
+    let normalCount = 0
+    let warningCount = 0
+    let overdueCount = 0
+
+    pendingArticles.forEach((article) => {
+      const info = getTimeoutInfo(article)
+      if (info.status === TIMEOUT_STATUS.OVERDUE) {
+        overdueCount++
+      } else if (info.status === TIMEOUT_STATUS.WARNING) {
+        warningCount++
+      } else {
+        normalCount++
+      }
+    })
+
+    return {
+      total: pendingArticles.length,
+      normal: normalCount,
+      warning: warningCount,
+      overdue: overdueCount,
+    }
+  }
+
+  const filterArticlesByTimeoutStatus = (articles, timeoutStatus) => {
+    if (!timeoutStatus || timeoutStatus === 'all') return articles
+    return articles.filter((article) => {
+      const info = getTimeoutInfo(article)
+      return info.status === timeoutStatus
+    })
   }
 
   return (
@@ -1934,6 +2054,9 @@ export function AppProvider({ children }) {
         getRollbackRequestById,
         approveRollbackRequest,
         rejectRollbackRequest,
+        getTimeoutInfo,
+        getTimeoutStatsForUser,
+        filterArticlesByTimeoutStatus,
       }}
     >
       {children}

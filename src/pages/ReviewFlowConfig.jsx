@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Save, GitBranch, CheckCircle2, XCircle, Info, ChevronDown, ChevronUp, FileText, Calendar, Hash, Copy } from 'lucide-react'
+import { Save, GitBranch, CheckCircle2, XCircle, Info, ChevronDown, ChevronUp, FileText, Calendar, Hash, Copy, Clock } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import { useApp } from '../context/useApp'
 import { getActiveCategories } from '../utils/helpers'
@@ -38,6 +38,16 @@ export default function ReviewFlowConfig() {
     const currentRules = config.validationRules || {}
     const newRules = { ...currentRules, minContentLength: numValue }
     updateReviewFlowConfig(configId, { validationRules: newRules })
+  }
+
+  const handleTimeoutHoursChange = (configId, field, value) => {
+    const numValue = parseInt(value, 10)
+    if (isNaN(numValue) || numValue < 0) return
+    const config = state.reviewFlowConfigs.find((c) => c.id === configId)
+    if (!config) return
+    const currentConfig = config.timeoutConfig || {}
+    const newConfig = { ...currentConfig, [field]: numValue }
+    updateReviewFlowConfig(configId, { timeoutConfig: newConfig })
   }
 
   const toggleExpand = (configId) => {
@@ -277,6 +287,113 @@ export default function ReviewFlowConfig() {
                                 }`}
                               />
                             </button>
+                          </div>
+                        </div>
+
+                        <div className="text-sm font-medium text-gray-700 mt-6 mb-2 flex items-center gap-2">
+                          <span className="w-1 h-4 bg-orange-500 rounded-full" />
+                          审核时限配置
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          {!config.requireTwoLevel ? (
+                            <div className="flex items-start justify-between p-3 bg-white rounded-lg border border-gray-200">
+                              <div className="flex items-start gap-3">
+                                <div className="w-8 h-8 rounded bg-orange-50 flex items-center justify-center shrink-0 mt-0.5">
+                                  <Clock className="w-4 h-4 text-orange-600" />
+                                </div>
+                                <div>
+                                  <div className="text-sm font-medium text-gray-800">一级审核时限</div>
+                                  <div className="text-xs text-gray-500 mt-0.5">
+                                    从提交审核到审核完成的最长时间
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0 mt-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={config.timeoutConfig?.singleReviewHours ?? 24}
+                                  onChange={(e) => handleTimeoutHoursChange(config.id, 'singleReviewHours', e.target.value)}
+                                  className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-center"
+                                />
+                                <span className="text-xs text-gray-500">小时</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-start justify-between p-3 bg-white rounded-lg border border-gray-200">
+                                <div className="flex items-start gap-3">
+                                  <div className="w-8 h-8 rounded bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
+                                    <Clock className="w-4 h-4 text-blue-600" />
+                                  </div>
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-800">初审核时限</div>
+                                    <div className="text-xs text-gray-500 mt-0.5">
+                                      从提交到初审完成的最长时间
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0 mt-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={config.timeoutConfig?.firstReviewHours ?? 24}
+                                    onChange={(e) => handleTimeoutHoursChange(config.id, 'firstReviewHours', e.target.value)}
+                                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                  />
+                                  <span className="text-xs text-gray-500">小时</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-start justify-between p-3 bg-white rounded-lg border border-gray-200">
+                                <div className="flex items-start gap-3">
+                                  <div className="w-8 h-8 rounded bg-purple-50 flex items-center justify-center shrink-0 mt-0.5">
+                                    <Clock className="w-4 h-4 text-purple-600" />
+                                  </div>
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-800">复审核时限</div>
+                                    <div className="text-xs text-gray-500 mt-0.5">
+                                      从初审通过到终审完成的最长时间
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0 mt-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={config.timeoutConfig?.finalReviewHours ?? 24}
+                                    onChange={(e) => handleTimeoutHoursChange(config.id, 'finalReviewHours', e.target.value)}
+                                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-center"
+                                  />
+                                  <span className="text-xs text-gray-500">小时</span>
+                                </div>
+                              </div>
+                            </>
+                          )}
+
+                          <div className="flex items-start justify-between p-3 bg-white rounded-lg border border-gray-200">
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded bg-amber-50 flex items-center justify-center shrink-0 mt-0.5">
+                                <Clock className="w-4 h-4 text-amber-600" />
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium text-gray-800">即将超时提醒</div>
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  剩余时间小于该值时标记为即将超时
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 mt-1">
+                              <input
+                                type="number"
+                                min="0"
+                                value={config.timeoutConfig?.warningHours ?? 4}
+                                onChange={(e) => handleTimeoutHoursChange(config.id, 'warningHours', e.target.value)}
+                                className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 text-center"
+                              />
+                              <span className="text-xs text-gray-500">小时</span>
+                            </div>
                           </div>
                         </div>
                       </div>

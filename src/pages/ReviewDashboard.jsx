@@ -19,10 +19,10 @@ import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import RejectTemplateManager from '../components/RejectTemplateManager'
 import { useApp } from '../context/useApp'
-import { getReviewStageText, getReviewStageColor, isArticleClaimed, isArticleClaimedByUser } from '../utils/helpers'
+import { getReviewStageText, getReviewStageColor, isArticleClaimed, isArticleClaimedByUser, TIMEOUT_STATUS, getTimeoutStatusText, formatRemainingTime } from '../utils/helpers'
 
 export default function ReviewDashboard() {
-  const { state, reviewArticle, isTwoLevelReview, claimArticle, releaseArticle } = useApp()
+  const { state, reviewArticle, isTwoLevelReview, claimArticle, releaseArticle, getTimeoutInfo, getTimeoutStatsForUser } = useApp()
   const navigate = useNavigate()
   const currentUser = state.currentUser
   const userRole = currentUser?.role
@@ -73,8 +73,9 @@ export default function ReviewDashboard() {
     const pending = state.articles.filter((a) => !a.deleted && isArticlePendingForUser(a)).length
     const published = state.articles.filter((a) => a.status === 'published' && !a.deleted).length
     const rejected = state.articles.filter((a) => a.status === 'rejected' && !a.deleted).length
-    return { pending, published, rejected }
-  }, [state.articles, isArticlePendingForUser])
+    const timeoutStats = getTimeoutStatsForUser ? getTimeoutStatsForUser(isArticlePendingForUser) : { overdue: 0, warning: 0, normal: 0 }
+    return { pending, published, rejected, overdue: timeoutStats.overdue, warning: timeoutStats.warning }
+  }, [state.articles, isArticlePendingForUser, getTimeoutStatsForUser])
 
   const categoryStats = useMemo(() => {
     const pendingArticles = state.articles.filter((a) => !a.deleted && isArticlePendingForUser(a))
@@ -88,9 +89,16 @@ export default function ReviewDashboard() {
   const recentPending = useMemo(() => {
     return state.articles
       .filter((a) => !a.deleted && isArticlePendingForUser(a))
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .sort((a, b) => {
+        const infoA = getTimeoutInfo(a)
+        const infoB = getTimeoutInfo(b)
+        const priorityA = infoA.status === TIMEOUT_STATUS.OVERDUE ? 0 : infoA.status === TIMEOUT_STATUS.WARNING ? 1 : 2
+        const priorityB = infoB.status === TIMEOUT_STATUS.OVERDUE ? 0 : infoB.status === TIMEOUT_STATUS.WARNING ? 1 : 2
+        if (priorityA !== priorityB) return priorityA - priorityB
+        return new Date(b.createdAt) - new Date(a.createdAt)
+      })
       .slice(0, 5)
-  }, [state.articles, isArticlePendingForUser])
+  }, [state.articles, isArticlePendingForUser, getTimeoutInfo])
 
   const getApproveStatus = (article) => {
     const needTwoLevel = isTwoLevelReview(article.category)
@@ -226,6 +234,24 @@ export default function ReviewDashboard() {
       valueColor: 'text-orange-600',
     },
     {
+      label: '已超时',
+      value: stats.overdue,
+      icon: XCircle,
+      color: 'red',
+      bgColor: 'bg-red-50',
+      iconColor: 'text-red-600',
+      valueColor: 'text-red-600',
+    },
+    {
+      label: '即将超时',
+      value: stats.warning,
+      icon: Clock,
+      color: 'amber',
+      bgColor: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      valueColor: 'text-amber-600',
+    },
+    {
       label: '已通过',
       value: stats.published,
       icon: CheckCircle,
@@ -238,10 +264,10 @@ export default function ReviewDashboard() {
       label: '已退回',
       value: stats.rejected,
       icon: XCircle,
-      color: 'red',
-      bgColor: 'bg-red-50',
-      iconColor: 'text-red-600',
-      valueColor: 'text-red-600',
+      color: 'gray',
+      bgColor: 'bg-gray-50',
+      iconColor: 'text-gray-600',
+      valueColor: 'text-gray-600',
     },
   ]
 
@@ -254,7 +280,7 @@ export default function ReviewDashboard() {
         <p className="text-gray-500 text-sm mt-1">欢迎回来，快速了解审核工作概况</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         {statCards.map((card) => {
           const Icon = card.icon
           return (
@@ -357,42 +383,73 @@ export default function ReviewDashboard() {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <StatusTag status={article.status} reviewStage={article.reviewStage} />
-                      {canUserClaimArticle(article) && (
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <StatusTag status={article.status} reviewStage={article.reviewStage} />
+                        {(() => {
+                          const info = getTimeoutInfo(article)
+                          if (info.status === TIMEOUT_STATUS.OVERDUE || info.status === TIMEOUT_STATUS.WARNING) {
+                            return (
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                  info.status === TIMEOUT_STATUS.OVERDUE
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-amber-100 text-amber-700'
+                                }`}
+                              >
+                                {getTimeoutStatusText(info.status)}
+                              </span>
+                            )
+                          }
+                          return null
+                        })()}
+                      </div>
+                      {(() => {
+                        const info = getTimeoutInfo(article)
+                        return (
+                          <span className="text-xs text-gray-500">
+                            {info.status === TIMEOUT_STATUS.OVERDUE
+                              ? `已超时 ${formatRemainingTime(Math.abs(info.remainingHours))}`
+                              : `剩余 ${formatRemainingTime(info.remainingHours)}`}
+                          </span>
+                        )
+                      })()}
+                      <div className="flex items-center gap-1">
+                        {canUserClaimArticle(article) && (
+                          <button
+                            className="p-1.5 text-cyan-600 hover:text-cyan-700 hover:bg-cyan-50 rounded transition-colors"
+                            title="认领任务"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleClaim(article.id)
+                            }}
+                          >
+                            <Hand className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canUserReleaseArticle(article) && (
+                          <button
+                            className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
+                            title="释放任务"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleRelease(article.id)
+                            }}
+                          >
+                            <Unlock className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
-                          className="p-1.5 text-cyan-600 hover:text-cyan-700 hover:bg-cyan-50 rounded transition-colors"
-                          title="认领任务"
+                          className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
+                          title="查看详情"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleClaim(article.id)
+                            handleViewDetail(article)
                           }}
                         >
-                          <Hand className="w-4 h-4" />
+                          <Eye className="w-4 h-4" />
                         </button>
-                      )}
-                      {canUserReleaseArticle(article) && (
-                        <button
-                          className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
-                          title="释放任务"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleRelease(article.id)
-                          }}
-                        >
-                          <Unlock className="w-4 h-4" />
-                        </button>
-                      )}
-                      <button
-                        className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
-                        title="查看详情"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleViewDetail(article)
-                        }}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -451,6 +508,28 @@ export default function ReviewDashboard() {
                     {detailArticle.claimantName} 认领于 {detailArticle.claimedAt}
                   </span>
                 )}
+                {(detailArticle.status === 'pending' || detailArticle.status === 'first_reviewed') && (
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full ${
+                      (() => {
+                        const info = getTimeoutInfo(detailArticle)
+                        return info.status === TIMEOUT_STATUS.OVERDUE
+                          ? 'bg-red-100 text-red-700'
+                          : info.status === TIMEOUT_STATUS.WARNING
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-green-100 text-green-700'
+                      })()
+                    }`}
+                  >
+                    {(() => {
+                      const info = getTimeoutInfo(detailArticle)
+                      if (info.status === TIMEOUT_STATUS.OVERDUE) {
+                        return `已超时 ${formatRemainingTime(Math.abs(info.remainingHours))}`
+                      }
+                      return `${getTimeoutStatusText(info.status)} · 剩余 ${formatRemainingTime(info.remainingHours)}`
+                    })()}
+                  </span>
+                )}
               </div>
               <div
                 className="prose max-w-none text-gray-700"
@@ -493,6 +572,17 @@ export default function ReviewDashboard() {
                             }`}>
                               {item.action === 'pass' ? '通过' : '退回'}
                             </span>
+                            {item.isTimeoutWhenReviewed && (
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded ${
+                                  item.timeoutStatusWhenReviewed === TIMEOUT_STATUS.OVERDUE
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-amber-100 text-amber-700'
+                                }`}
+                              >
+                                {item.timeoutStatusWhenReviewed === TIMEOUT_STATUS.OVERDUE ? '已超时处理' : '即将超时处理'}
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
                             {item.reviewTime}
