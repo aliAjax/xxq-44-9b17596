@@ -775,7 +775,7 @@ export const calculateArticleReviewDurations = (article) => {
 }
 
 export const calculateDepartmentStats = (articles, departments, filters = {}) => {
-  const { category = '', department = '', startDate = '', endDate = '' } = filters
+  const { category = '', department = '', status = '', startDate = '', endDate = '' } = filters
 
   let filteredArticles = articles.filter((a) => !a.deleted)
 
@@ -786,6 +786,10 @@ export const calculateDepartmentStats = (articles, departments, filters = {}) =>
     filteredArticles = filteredArticles.filter(
       (a) => a.department === department
     )
+  }
+  if (status) {
+    const statusValues = status === 'pending_all' ? ['pending', 'first_reviewed'] : [status]
+    filteredArticles = filteredArticles.filter((a) => statusValues.includes(a.status))
   }
 
   if (startDate) {
