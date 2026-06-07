@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus,
   Search,
@@ -40,19 +40,46 @@ const PAGE_SIZE = 10
 export default function ArticleList() {
   const { state, deleteArticle, updateArticle, restoreArticle } = useApp()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const initializedRef = useRef(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [keyword, setKeyword] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
   const [showFilter, setShowFilter] = useState(false)
-  const [filters, setFilters] = useState({
-    category: '',
-    department: '',
-    startDate: '',
-    endDate: '',
-    hasAttachment: '',
-    status: '',
-    deleted: 'no',
+  const [filters, setFilters] = useState(() => {
+    const paramsCategory = searchParams.get('category')
+    const paramsDepartment = searchParams.get('department')
+    const paramsStatus = searchParams.get('status')
+    const paramsStartDate = searchParams.get('startDate')
+    const paramsEndDate = searchParams.get('endDate')
+    return {
+      category: paramsCategory || '',
+      department: paramsDepartment || '',
+      startDate: paramsStartDate || '',
+      endDate: paramsEndDate || '',
+      hasAttachment: '',
+      status: paramsStatus || '',
+      deleted: 'no',
+    }
   })
+
+  useEffect(() => {
+    if (initializedRef.current) return
+    initializedRef.current = true
+
+    const paramsKeyword = searchParams.get('keyword')
+    const hasFilterParam = searchParams.get('category') || searchParams.get('department') || 
+      searchParams.get('status') || searchParams.get('startDate') || 
+      searchParams.get('endDate') || paramsKeyword
+
+    if (paramsKeyword) {
+      setKeyword(paramsKeyword)
+      setSearchKeyword(paramsKeyword)
+    }
+    if (hasFilterParam) {
+      setShowFilter(true)
+    }
+  }, [searchParams])
 
   const [showVersionModal, setShowVersionModal] = useState(false)
   const [versionArticle, setVersionArticle] = useState(null)

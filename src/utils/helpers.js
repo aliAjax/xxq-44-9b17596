@@ -717,3 +717,316 @@ export const validateArticle = (articleData, rules, allArticles = [], currentArt
     warnings,
   }
 }
+
+export const formatDurationHours = (hours) => {
+  if (!hours || hours <= 0) return '-'
+  if (hours < 1) {
+    const minutes = Math.ceil(hours * 60)
+    return `${minutes}分钟`
+  }
+  if (hours < 24) {
+    const h = Math.floor(hours)
+    const m = Math.round((hours - h) * 60)
+    if (m === 0) return `${h}小时`
+    return `${h}小时${m}分`
+  }
+  const days = Math.floor(hours / 24)
+  const h = Math.round(hours - days * 24)
+  if (h === 0) return `${days}天`
+  return `${days}天${h}小时`
+}
+
+export const calculateArticleReviewDurations = (article) => {
+  if (!article) return { firstReviewHours: 0, finalReviewHours: 0, totalReviewHours: 0, hasTwoLevel: false }
+
+  const needTwoLevel = article.firstReviewerId && article.finalReviewerId
+  let firstReviewHours = 0
+  let finalReviewHours = 0
+  let totalReviewHours = 0
+
+  const getHoursDiff = (startStr, endStr) => {
+    if (!startStr || !endStr) return 0
+    const start = new Date(startStr)
+    const end = new Date(endStr)
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0
+    const diffMs = end.getTime() - start.getTime()
+    return Math.max(0, diffMs / (1000 * 60 * 60))
+  }
+
+  if (needTwoLevel) {
+    const firstStart = article.firstReviewStartTime || article.submittedAt || article.createdAt
+    firstReviewHours = getHoursDiff(firstStart, article.firstReviewedAt)
+
+    const finalStart = article.finalReviewStartTime || article.firstReviewedAt
+    finalReviewHours = getHoursDiff(finalStart, article.finalReviewedAt)
+
+    totalReviewHours = firstReviewHours + finalReviewHours
+  } else {
+    const start = article.submittedAt || article.createdAt
+    totalReviewHours = getHoursDiff(start, article.reviewedAt)
+  }
+
+  return {
+    firstReviewHours,
+    finalReviewHours,
+    totalReviewHours,
+    hasTwoLevel: needTwoLevel,
+  }
+}
+
+export const calculateDepartmentStats = (articles, departments, filters = {}) => {
+  const { category = '', department = '', status = '', startDate = '', endDate = '' } = filters
+
+  let filteredArticles = articles.filter((a) => !a.deleted)
+
+  if (category) {
+    filteredArticles = filteredArticles.filter((a) => a.category === category)
+  }
+  if (department) {
+    filteredArticles = filteredArticles.filter(
+      (a) => a.departmentId === department || a.department === department
+    )
+  }
+  if (status) {
+    filteredArticles = filteredArticles.filter((a) => a.status === status)
+  }
+
+  const inDateRange = (article) => {
+    if (!startDate && !endDate) return true
+    const dateStr = article.publishDate || article.updatedAt || article.createdAt
+    if (!dateStr) return false
+    if (startDate && dateStr < startDate) return false
+    if (endDate && dateStr > endDate) return false
+    return true
+  }
+
+  if (startDate || endDate) {
+    filteredArticles = filteredArticles.filter(inDateRange)
+  }
+
+  const stats = departments.map((dept) => {
+    const deptArticles = filteredArticles.filter(
+      (a) => a.departmentId === dept.id || a.department === dept.name
+    )
+
+    const publishedCount = deptArticles.filter((a) => a.status === 'published').length
+    const pendingCount = deptArticles.filter(
+      (a) => a.status === 'pending' || a.status === 'first_reviewed'
+    ).length
+    const rejectedCount = deptArticles.filter((a) => a.status === 'rejected').length
+    const draftCount = deptArticles.filter((a) => a.status === 'draft').length
+    const totalCount = deptArticles.length
+
+    const submittedCount = publishedCount + rejectedCount
+    const rejectRate = submittedCount > 0 ? rejectedCount / submittedCount : 0
+
+    let totalReviewHours = 0
+    let totalFirstReviewHours = 0
+    let totalFinalReviewHours = 0
+    let reviewedCount = 0
+    let twoLevelReviewedCount = 0
+
+    deptArticles.forEach((article) => {
+      if (article.status === 'published' || article.status === 'rejected') {
+        const durations = calculateArticleReviewDurations(article)
+        if (durations.totalReviewHours > 0) {
+          totalReviewHours += durations.totalReviewHours
+          reviewedCount++
+        }
+        if (durations.hasTwoLevel) {
+          totalFirstReviewHours += durations.firstReviewHours
+          totalFinalReviewHours += durations.finalReviewHours
+          twoLevelReviewedCount++
+        }
+      }
+    })
+
+    const avgReviewHours = reviewedCount > 0 ? totalReviewHours / reviewedCount : 0
+    const avgFirstReviewHours = twoLevelReviewedCount > 0 ? totalFirstReviewHours / twoLevelReviewedCount : 0
+    const avgFinalReviewHours = twoLevelReviewedCount > 0 ? totalFinalReviewHours / twoLevelReviewedCount : 0
+
+    const lastUpdated = deptArticles.reduce((latest, article) => {
+      if (!latest) return article.updatedAt
+      return new Date(article.updatedAt) > new Date(latest) ? article.updatedAt : latest
+    }, '')
+
+    return {
+      ...dept,
+      totalCount,
+      publishedCount,
+      pendingCount,
+      rejectedCount,
+      draftCount,
+      rejectRate,
+      avgReviewHours,
+      avgFirstReviewHours,
+      avgFinalReviewHours,
+      reviewedCount,
+      twoLevelReviewedCount,
+      lastUpdated,
+    }
+  })
+
+  return stats
+}
+
+export const calculateOverallStats = (departmentStats) => {
+  if (!departmentStats || departmentStats.length === 0) {
+    return {
+      totalCount: 0,
+      publishedCount: 0,
+      pendingCount: 0,
+      rejectedCount: 0,
+      draftCount: 0,
+      rejectRate: 0,
+      avgReviewHours: 0,
+      avgFirstReviewHours: 0,
+      avgFinalReviewHours: 0,
+      activeDepartmentCount: 0,
+    }
+  }
+
+  let totalCount = 0
+  let publishedCount = 0
+  let pendingCount = 0
+  let rejectedCount = 0
+  let draftCount = 0
+  let totalReviewHours = 0
+  let totalReviewedCount = 0
+  let totalFirstReviewHours = 0
+  let totalFinalReviewHours = 0
+  let totalTwoLevelReviewedCount = 0
+  let activeDepartmentCount = 0
+
+  departmentStats.forEach((dept) => {
+    totalCount += dept.totalCount
+    publishedCount += dept.publishedCount
+    pendingCount += dept.pendingCount
+    rejectedCount += dept.rejectedCount
+    draftCount += dept.draftCount
+    if (dept.status === 'active') activeDepartmentCount++
+    if (dept.reviewedCount > 0) {
+      totalReviewHours += dept.avgReviewHours * dept.reviewedCount
+      totalReviewedCount += dept.reviewedCount
+    }
+    if (dept.twoLevelReviewedCount > 0) {
+      totalFirstReviewHours += dept.avgFirstReviewHours * dept.twoLevelReviewedCount
+      totalFinalReviewHours += dept.avgFinalReviewHours * dept.twoLevelReviewedCount
+      totalTwoLevelReviewedCount += dept.twoLevelReviewedCount
+    }
+  })
+
+  const submittedCount = publishedCount + rejectedCount
+  const rejectRate = submittedCount > 0 ? rejectedCount / submittedCount : 0
+  const avgReviewHours = totalReviewedCount > 0 ? totalReviewHours / totalReviewedCount : 0
+  const avgFirstReviewHours = totalTwoLevelReviewedCount > 0 ? totalFirstReviewHours / totalTwoLevelReviewedCount : 0
+  const avgFinalReviewHours = totalTwoLevelReviewedCount > 0 ? totalFinalReviewHours / totalTwoLevelReviewedCount : 0
+
+  return {
+    totalCount,
+    publishedCount,
+    pendingCount,
+    rejectedCount,
+    draftCount,
+    rejectRate,
+    avgReviewHours,
+    avgFirstReviewHours,
+    avgFinalReviewHours,
+    activeDepartmentCount,
+  }
+}
+
+export const exportStatsToCsv = (departmentStats, overallStats, filters = {}) => {
+  const headers = [
+    '科室名称',
+    '状态',
+    '总数',
+    '已发布',
+    '待审核',
+    '已退回',
+    '草稿',
+    '退回率',
+    '平均审核耗时(小时)',
+    '平均初审耗时(小时)',
+    '平均终审耗时(小时)',
+    '最近更新',
+  ]
+
+  const formatRow = (dept) => [
+    dept.name,
+    dept.status === 'active' ? '正常' : '停用',
+    dept.totalCount,
+    dept.publishedCount,
+    dept.pendingCount,
+    dept.rejectedCount,
+    dept.draftCount,
+    (dept.rejectRate * 100).toFixed(2) + '%',
+    dept.avgReviewHours.toFixed(2),
+    dept.avgFirstReviewHours.toFixed(2),
+    dept.avgFinalReviewHours.toFixed(2),
+    dept.lastUpdated || '-',
+  ]
+
+  const escapeCsv = (value) => {
+    const str = String(value)
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`
+    }
+    return str
+  }
+
+  let csvContent = '\uFEFF'
+
+  csvContent += '科室公开统计报表\n'
+  csvContent += `生成时间,${formatDateTime(new Date())}\n`
+  if (filters.category) csvContent += `公开类别,${filters.categoryName || filters.category}\n`
+  if (filters.department) csvContent += `科室,${filters.departmentName || filters.department}\n`
+  if (filters.status) csvContent += `状态,${getStatusText(filters.status)}\n`
+  if (filters.startDate || filters.endDate) {
+    csvContent += `时间范围,${filters.startDate || '开始'} 至 ${filters.endDate || '结束'}\n`
+  }
+  csvContent += '\n'
+
+  csvContent += '汇总统计\n'
+  csvContent += `活跃科室,${overallStats.activeDepartmentCount}\n`
+  csvContent += `总数量,${overallStats.totalCount}\n`
+  csvContent += `已发布,${overallStats.publishedCount}\n`
+  csvContent += `待审核,${overallStats.pendingCount}\n`
+  csvContent += `已退回,${overallStats.rejectedCount}\n`
+  csvContent += `草稿,${overallStats.draftCount}\n`
+  csvContent += `退回率,${(overallStats.rejectRate * 100).toFixed(2)}%\n`
+  csvContent += `平均审核耗时(小时),${overallStats.avgReviewHours.toFixed(2)}\n`
+  csvContent += `平均初审耗时(小时),${overallStats.avgFirstReviewHours.toFixed(2)}\n`
+  csvContent += `平均终审耗时(小时),${overallStats.avgFinalReviewHours.toFixed(2)}\n`
+  csvContent += '\n'
+
+  csvContent += '详细统计\n'
+  csvContent += headers.map(escapeCsv).join(',') + '\n'
+
+  departmentStats.forEach((dept) => {
+    csvContent += formatRow(dept).map(escapeCsv).join(',') + '\n'
+  })
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  link.setAttribute('href', url)
+  link.setAttribute('download', `科室公开统计_${formatDate(new Date())}.csv`)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+export const filterLogsByDateRange = (logs, startDate, endDate) => {
+  if (!startDate && !endDate) return logs
+
+  return logs.filter((log) => {
+    if (!log.operatedAt) return false
+    const logDate = log.operatedAt.split(' ')[0]
+    if (startDate && logDate < startDate) return false
+    if (endDate && logDate > endDate) return false
+    return true
+  })
+}
