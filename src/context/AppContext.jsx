@@ -161,23 +161,52 @@ function reducer(state, action) {
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
+  const migrateUsers = (existingUsers) => {
+    const migratedUsers = [...(existingUsers || [])]
+    const usedIds = new Set(migratedUsers.map((user) => user.id))
+    let maxId = migratedUsers.length > 0
+      ? Math.max(...migratedUsers.map((user) => parseInt(user.id) || 0))
+      : 0
+
+    users.forEach((defaultUser) => {
+      const exists = migratedUsers.some(
+        (user) => user.username === defaultUser.username && user.role === defaultUser.role
+      )
+      if (!exists) {
+        let nextId = defaultUser.id
+        if (usedIds.has(nextId)) {
+          maxId += 1
+          nextId = String(maxId)
+        }
+        usedIds.add(nextId)
+        migratedUsers.push({ ...defaultUser, id: nextId })
+      }
+    })
+
+    return migratedUsers
+  }
+
   const migrateReviewFlowConfigs = (configs, categoryList) => {
     if (!categoryList || categoryList.length === 0) return configs || []
     const existingConfigs = configs || []
     const existingCodes = new Set(existingConfigs.map((c) => c.categoryCode))
     const newConfigs = [...existingConfigs]
+    const defaultConfigMap = new Map(
+      reviewFlowConfigs.map((config) => [config.categoryCode, config])
+    )
     let maxId = existingConfigs.length > 0
       ? Math.max(...existingConfigs.map((c) => parseInt(c.id) || 0))
       : 0
 
     categoryList.forEach((cat) => {
       if (!existingCodes.has(cat.code)) {
+        const defaultConfig = defaultConfigMap.get(cat.code)
         maxId += 1
         newConfigs.push({
           id: String(maxId),
           categoryCode: cat.code,
           categoryName: cat.name,
-          requireTwoLevel: false,
+          requireTwoLevel: defaultConfig?.requireTwoLevel || false,
         })
       }
     })
@@ -249,6 +278,12 @@ export function AppProvider({ children }) {
         storage.set(STORAGE_KEYS.REJECT_TEMPLATES_INITIALIZED, true)
       }
 
+      const existingUsers = storage.get(STORAGE_KEYS.USERS) || []
+      const migratedUsers = migrateUsers(existingUsers)
+      if (migratedUsers.length !== existingUsers.length) {
+        storage.set(STORAGE_KEYS.USERS, migratedUsers)
+      }
+
       const reviewFlowInitialized = storage.get(STORAGE_KEYS.REVIEW_FLOW_INITIALIZED)
       const loadedCategories = storage.get(STORAGE_KEYS.CATEGORIES) || categories
       const existingFlowConfigs = storage.get(STORAGE_KEYS.REVIEW_FLOW_CONFIGS) || []
@@ -266,6 +301,8 @@ export function AppProvider({ children }) {
     const loadedCategories = storage.get(STORAGE_KEYS.CATEGORIES) || categories
     const loadedFlowConfigs = storage.get(STORAGE_KEYS.REVIEW_FLOW_CONFIGS) || []
     const finalFlowConfigs = migrateReviewFlowConfigs(loadedFlowConfigs, loadedCategories)
+    const loadedUsers = storage.get(STORAGE_KEYS.USERS) || []
+    const finalUsers = migrateUsers(loadedUsers)
     const loadedArticles = storage.get(STORAGE_KEYS.ARTICLES) || []
     const finalArticles = migrateArticles(loadedArticles, finalFlowConfigs)
 
@@ -273,7 +310,7 @@ export function AppProvider({ children }) {
       type: actionTypes.INIT_DATA,
       payload: {
         articles: finalArticles,
-        users: storage.get(STORAGE_KEYS.USERS) || [],
+        users: finalUsers,
         categories: loadedCategories,
         departments: storage.get(STORAGE_KEYS.DEPARTMENTS) || [],
         rejectTemplates: storage.get(STORAGE_KEYS.REJECT_TEMPLATES) || [],
@@ -463,20 +500,6 @@ export function AppProvider({ children }) {
     const articles = state.articles.filter((a) => a.id !== id)
     storage.set(STORAGE_KEYS.ARTICLES, articles)
     dispatch({ type: actionTypes.PERMANENT_DELETE_ARTICLE, payload: id })
-  }
-
-  const addReviewHistoryItem = (articleId, historyItem) => {
-    const articles = state.articles.map((a) => {
-      if (a.id === articleId) {
-        return {
-          ...a,
-          reviewHistory: [...(a.reviewHistory || []), historyItem],
-        }
-      }
-      return a
-    })
-    storage.set(STORAGE_KEYS.ARTICLES, articles)
-    return articles
   }
 
   const reviewArticle = (id, status, rejectReason = '') => {

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate, History, Clock } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
@@ -26,7 +26,7 @@ export default function ReviewList() {
 
   const userRole = currentUser?.role
 
-  const isArticlePendingForUser = (article) => {
+  const isArticlePendingForUser = useCallback((article) => {
     if (article.status !== 'pending' && article.status !== 'first_reviewed') return false
     if (userRole === 'reviewer') {
       return article.status === 'pending'
@@ -35,7 +35,7 @@ export default function ReviewList() {
       return article.status === 'first_reviewed'
     }
     return false
-  }
+  }, [userRole])
 
   const filteredArticles = useMemo(() => {
     let result = state.articles.filter((a) => !a.deleted)
@@ -59,11 +59,11 @@ export default function ReviewList() {
     })
 
     return result
-  }, [state.articles, activeTab, keyword, userRole])
+  }, [state.articles, activeTab, keyword, isArticlePendingForUser])
 
   const pendingCount = useMemo(() => {
     return state.articles.filter((a) => !a.deleted && isArticlePendingForUser(a)).length
-  }, [state.articles, userRole])
+  }, [state.articles, isArticlePendingForUser])
 
   const totalPages = Math.ceil(filteredArticles.length / PAGE_SIZE)
   const paginatedArticles = filteredArticles.slice(

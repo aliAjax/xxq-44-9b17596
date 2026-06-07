@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Clock,
@@ -31,7 +31,7 @@ export default function ReviewDashboard() {
   const [rejectReason, setRejectReason] = useState('')
   const [showTemplatePanel, setShowTemplatePanel] = useState(false)
 
-  const isArticlePendingForUser = (article) => {
+  const isArticlePendingForUser = useCallback((article) => {
     if (article.status !== 'pending' && article.status !== 'first_reviewed') return false
     if (userRole === 'reviewer') {
       return article.status === 'pending'
@@ -40,14 +40,14 @@ export default function ReviewDashboard() {
       return article.status === 'first_reviewed'
     }
     return false
-  }
+  }, [userRole])
 
   const stats = useMemo(() => {
     const pending = state.articles.filter((a) => !a.deleted && isArticlePendingForUser(a)).length
     const published = state.articles.filter((a) => a.status === 'published' && !a.deleted).length
     const rejected = state.articles.filter((a) => a.status === 'rejected' && !a.deleted).length
     return { pending, published, rejected }
-  }, [state.articles, userRole])
+  }, [state.articles, isArticlePendingForUser])
 
   const categoryStats = useMemo(() => {
     const pendingArticles = state.articles.filter((a) => !a.deleted && isArticlePendingForUser(a))
@@ -56,14 +56,14 @@ export default function ReviewDashboard() {
       return { ...cat, count }
     })
     return stats
-  }, [state.articles, state.categories, userRole])
+  }, [state.articles, state.categories, isArticlePendingForUser])
 
   const recentPending = useMemo(() => {
     return state.articles
       .filter((a) => !a.deleted && isArticlePendingForUser(a))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 5)
-  }, [state.articles, userRole])
+  }, [state.articles, isArticlePendingForUser])
 
   const getApproveStatus = (article) => {
     const needTwoLevel = isTwoLevelReview(article.category)

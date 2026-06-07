@@ -14,6 +14,10 @@ export default function Login() {
 
   const from = location.state?.from?.pathname || null
 
+  const matchesRoute = (path, route) => {
+    return path === route || path?.startsWith(`${route}/`)
+  }
+
   const getDefaultRedirect = (userRole) => {
     if (userRole === 'editor') return '/admin/articles'
     if (userRole === 'senior_reviewer') return '/admin/dashboard'
@@ -22,30 +26,29 @@ export default function Login() {
 
   const isEditorRoute = (path) => {
     return (
-      path?.startsWith('/admin/articles') ||
-      path?.startsWith('/admin/batch-import') ||
-      path?.startsWith('/admin/recycle') ||
-      path?.startsWith('/admin/department-stats') ||
-      path?.startsWith('/admin/calendar') ||
-      path?.startsWith('/admin/operation-logs')
+      matchesRoute(path, '/admin/articles') ||
+      matchesRoute(path, '/admin/batch-import') ||
+      matchesRoute(path, '/admin/recycle') ||
+      matchesRoute(path, '/admin/department-stats') ||
+      matchesRoute(path, '/admin/calendar') ||
+      matchesRoute(path, '/admin/operation-logs')
     )
   }
 
   const isReviewerRoute = (path) => {
     return (
-      path?.startsWith('/admin/dashboard') ||
-      path?.startsWith('/admin/review') ||
-      path?.startsWith('/admin/review-flow') ||
-      path?.startsWith('/admin/operation-logs')
+      matchesRoute(path, '/admin/dashboard') ||
+      matchesRoute(path, '/admin/review') ||
+      matchesRoute(path, '/admin/operation-logs')
     )
   }
 
   const isSeniorReviewerRoute = (path) => {
     return (
-      path?.startsWith('/admin/dashboard') ||
-      path?.startsWith('/admin/review') ||
-      path?.startsWith('/admin/review-flow') ||
-      path?.startsWith('/admin/operation-logs')
+      matchesRoute(path, '/admin/dashboard') ||
+      matchesRoute(path, '/admin/review') ||
+      matchesRoute(path, '/admin/review-flow') ||
+      matchesRoute(path, '/admin/operation-logs')
     )
   }
 
