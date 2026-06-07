@@ -238,7 +238,7 @@ export default function DepartmentStats() {
                         </span>
                       </td>
                     </tr>
-                    {selectedDepartment === dept.name && (
+                    {selectedDepartment === dept.id && (
                       <tr>
                         <td colSpan="7" className="bg-gray-50 px-4 py-4">
                           <div className="bg-white rounded-lg border border-gray-200">
