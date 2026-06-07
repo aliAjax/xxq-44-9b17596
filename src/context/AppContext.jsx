@@ -842,7 +842,6 @@ export function AppProvider({ children }) {
       { key: 'categoryName', label: '类别' },
       { key: 'department', label: '科室' },
       { key: 'publishDate', label: '发布日期' },
-      { key: 'attachmentName', label: '附件' },
       { key: 'content', label: '正文' },
     ]
 
@@ -859,6 +858,24 @@ export function AppProvider({ children }) {
         })
       }
     })
+
+    const oldAttachmentName = version1.attachmentName || ''
+    const oldAttachmentUrl = version1.attachmentUrl || ''
+    const newAttachmentName = version2.attachmentName || ''
+    const newAttachmentUrl = version2.attachmentUrl || ''
+    if (oldAttachmentName !== newAttachmentName || oldAttachmentUrl !== newAttachmentUrl) {
+      const formatAttachment = (name, url) => {
+        if (!name && !url) return ''
+        if (name && url) return `${name} (${url})`
+        return name || url
+      }
+      differences.push({
+        field: 'attachment',
+        label: '附件',
+        oldValue: formatAttachment(oldAttachmentName, oldAttachmentUrl),
+        newValue: formatAttachment(newAttachmentName, newAttachmentUrl),
+      })
+    }
 
     return differences
   }

@@ -11,6 +11,7 @@ import {
   Calendar,
   Paperclip,
   ArrowRight,
+  Link,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import { getVersionTypeText, getVersionTypeColor } from '../utils/helpers'
@@ -39,10 +40,29 @@ export default function VersionHistoryModal({ article, onClose, showRestore = tr
     return compareVersions(compareVersion, currentVersion)
   }, [compareMode, currentVersion, compareVersion, compareVersions])
 
+  const hasPrevVersion = useMemo(() => {
+    if (!currentVersion) return false
+    const currentIdx = versions.findIndex((v) => v.id === currentVersion.id)
+    return currentIdx >= 0 && currentIdx < versions.length - 1
+  }, [currentVersion, versions])
+
   const handleSelectVersion = (versionId) => {
     setSelectedVersionId(versionId)
     setCompareMode(false)
     setCompareVersionId(null)
+  }
+
+  const handleToggleCompare = () => {
+    if (compareMode) {
+      setCompareMode(false)
+      setCompareVersionId(null)
+    } else {
+      const currentIdx = versions.findIndex((v) => v.id === selectedVersionId)
+      if (currentIdx >= 0 && currentIdx < versions.length - 1) {
+        setCompareVersionId(versions[currentIdx + 1].id)
+        setCompareMode(true)
+      }
+    }
   }
 
   const handleRestore = (versionId) => {
@@ -85,6 +105,26 @@ export default function VersionHistoryModal({ article, onClose, showRestore = tr
       )
     }
 
+    if (diff.field === 'attachment') {
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded">旧版本</span>
+            <ArrowRight className="w-3 h-3" />
+            <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded">新版本</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-3 bg-red-50 border border-red-100 rounded-lg">
+              <div className="text-sm text-red-700 break-all">{diff.oldValue || '（无附件）'}</div>
+            </div>
+            <div className="p-3 bg-green-50 border border-green-100 rounded-lg">
+              <div className="text-sm text-green-700 break-all">{diff.newValue || '（无附件）'}</div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="flex items-center gap-3">
         <span className="text-sm text-gray-500 min-w-[60px]">旧值：</span>
@@ -102,6 +142,7 @@ export default function VersionHistoryModal({ article, onClose, showRestore = tr
 
   const renderVersionDetail = (version) => {
     if (!version) return null
+    const hasAttachment = version.attachmentName || version.attachmentUrl
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-gray-100">
@@ -148,12 +189,20 @@ export default function VersionHistoryModal({ article, onClose, showRestore = tr
             </div>
           </div>
 
-          {version.attachmentName && (
+          {hasAttachment && (
             <div className="flex items-start gap-3">
               <Paperclip className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
               <div className="flex-1">
                 <div className="text-xs text-gray-500 mb-1">附件</div>
-                <div className="text-sm text-primary-600">{version.attachmentName}</div>
+                <div className="text-sm text-primary-600">
+                  {version.attachmentName || '（未命名附件）'}
+                  {version.attachmentUrl && (
+                    <span className="text-xs text-gray-400 ml-2 flex items-center gap-1">
+                      <Link className="w-3 h-3" />
+                      {version.attachmentUrl}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -253,9 +302,9 @@ export default function VersionHistoryModal({ article, onClose, showRestore = tr
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {versions.indexOf(currentVersion) < versions.length - 1 && (
+                    {hasPrevVersion && (
                       <button
-                        onClick={() => setCompareMode(!compareMode)}
+                        onClick={handleToggleCompare}
                         className={`text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
                           compareMode
                             ? 'bg-purple-100 text-purple-700'

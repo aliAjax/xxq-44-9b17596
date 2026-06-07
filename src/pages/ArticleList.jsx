@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Edit2, Trash2, Send, Eye, Upload, Clock } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, Send, Eye, Upload, Clock, X, Building, Calendar, Paperclip, User } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
@@ -18,6 +18,8 @@ export default function ArticleList() {
   const [category, setCategory] = useState('')
   const [showVersionModal, setShowVersionModal] = useState(false)
   const [versionArticle, setVersionArticle] = useState(null)
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [detailArticle, setDetailArticle] = useState(null)
 
   const filteredArticles = useMemo(() => {
     let result = state.articles.filter((a) => !a.deleted)
@@ -58,6 +60,11 @@ export default function ArticleList() {
   const handleViewVersions = (article) => {
     setVersionArticle(article)
     setShowVersionModal(true)
+  }
+
+  const handleViewDetail = (article) => {
+    setDetailArticle(article)
+    setShowDetailModal(true)
   }
 
   return (
@@ -182,9 +189,9 @@ export default function ArticleList() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => navigate(`/detail/${article.id}`)}
+                          onClick={() => handleViewDetail(article)}
                           className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
-                          title="查看"
+                          title="查看详情"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -245,8 +252,132 @@ export default function ArticleList() {
               onPageChange={setCurrentPage}
             />
           </div>
-        )}
+      )}
       </div>
+
+      {showDetailModal && detailArticle && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col fade-in">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <h3 className="text-lg font-bold text-gray-900">信息详情</h3>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 mb-3">
+                  {detailArticle.title}
+                </h2>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <StatusTag status={detailArticle.status} reviewStage={detailArticle.reviewStage} />
+                  <span className="text-xs text-gray-500">{detailArticle.categoryName}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-start gap-2">
+                  <Building className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="text-xs text-gray-500 mb-0.5">科室</div>
+                    <div className="text-sm text-gray-700">{detailArticle.department}</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Calendar className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="text-xs text-gray-500 mb-0.5">发布日期</div>
+                    <div className="text-sm text-gray-700">{detailArticle.publishDate || '（未设置）'}</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <User className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="text-xs text-gray-500 mb-0.5">创建人</div>
+                    <div className="text-sm text-gray-700">{detailArticle.authorName || '（未知）'}</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="text-xs text-gray-500 mb-0.5">更新时间</div>
+                    <div className="text-sm text-gray-700">{detailArticle.updatedAt || detailArticle.createdAt}</div>
+                  </div>
+                </div>
+              </div>
+
+              {detailArticle.attachmentName && (
+                <div className="flex items-start gap-2">
+                  <Paperclip className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="text-xs text-gray-500 mb-0.5">附件</div>
+                    <div className="text-sm text-primary-600">{detailArticle.attachmentName}</div>
+                  </div>
+                </div>
+              )}
+
+              {detailArticle.rejectReason && (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-lg">
+                  <div className="text-xs text-red-600 font-medium mb-1">退回原因</div>
+                  <div className="text-sm text-red-700">{detailArticle.rejectReason}</div>
+                </div>
+              )}
+
+              <div>
+                <div className="text-xs text-gray-500 mb-2">正文内容</div>
+                <div
+                  className="p-4 bg-gray-50 rounded-lg text-sm text-gray-700 prose prose-sm max-w-none max-h-64 overflow-auto"
+                  style={{ lineHeight: '1.8' }}
+                  dangerouslySetInnerHTML={{ __html: detailArticle.content }}
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
+              <button
+                onClick={() => {
+                  setShowDetailModal(false)
+                  handleViewVersions(detailArticle)
+                }}
+                className="px-4 py-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors text-sm flex items-center gap-2"
+              >
+                <Clock className="w-4 h-4" />
+                版本历史
+              </button>
+              <div className="flex gap-2">
+                {(detailArticle.status === 'draft' || detailArticle.status === 'rejected') && (
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false)
+                      navigate(`/admin/articles/${detailArticle.id}/edit`)
+                    }}
+                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm flex items-center gap-2"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    编辑
+                  </button>
+                )}
+                {detailArticle.status === 'draft' && (
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false)
+                      handleSubmitReview(detailArticle.id)
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
+                  >
+                    <Send className="w-4 h-4" />
+                    提交审核
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showVersionModal && versionArticle && (
         <VersionHistoryModal
