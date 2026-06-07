@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, Building, FolderOpen, Paperclip, Download } from 'lucide-react'
+import { ArrowLeft, Calendar, Building, FolderOpen, Paperclip, Download, Clock } from 'lucide-react'
 import FrontendLayout from '../components/FrontendLayout'
+import VersionHistoryModal from '../components/VersionHistoryModal'
 import { useApp } from '../context/useApp'
 
 export default function Detail() {
   const { id } = useParams()
   const { getArticleById } = useApp()
+  const [showVersionModal, setShowVersionModal] = useState(false)
   const article = getArticleById(id)
 
   if (!article || article.status !== 'published' || article.deleted) {
@@ -27,7 +30,7 @@ export default function Detail() {
 
   return (
     <FrontendLayout>
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <Link
           to="/"
           className="inline-flex items-center gap-2 text-gray-500 hover:text-primary-600 transition-colors"
@@ -35,6 +38,13 @@ export default function Detail() {
           <ArrowLeft className="w-4 h-4" />
           返回列表
         </Link>
+        <button
+          onClick={() => setShowVersionModal(true)}
+          className="inline-flex items-center gap-2 px-3 py-2 text-sm text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+        >
+          <Clock className="w-4 h-4" />
+          版本历史
+        </button>
       </div>
 
       <article className="bg-white rounded-lg shadow-sm">
@@ -87,6 +97,13 @@ export default function Detail() {
           </div>
         )}
       </article>
+
+      {showVersionModal && (
+        <VersionHistoryModal
+          article={article}
+          onClose={() => setShowVersionModal(false)}
+        />
+      )}
     </FrontendLayout>
   )
 }
