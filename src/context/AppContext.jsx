@@ -1,6 +1,6 @@
 import { useReducer, useEffect } from 'react'
 import { storage, STORAGE_KEYS } from '../utils/storage'
-import { mockArticles, users, categories, departments, rejectTemplates } from '../data/mockData'
+import { mockArticles, users, categories, departments, rejectTemplates, reviewFlowConfigs } from '../data/mockData'
 import { generateId, formatDate, formatDateTime, OPERATION_ACTIONS } from '../utils/helpers'
 import { AppContext } from './useApp'
 
@@ -12,6 +12,7 @@ const initialState = {
   departments: [],
   rejectTemplates: [],
   operationLogs: [],
+  reviewFlowConfigs: [],
 }
 
 const actionTypes = {
@@ -29,6 +30,8 @@ const actionTypes = {
   UPDATE_REJECT_TEMPLATE: 'UPDATE_REJECT_TEMPLATE',
   DELETE_REJECT_TEMPLATE: 'DELETE_REJECT_TEMPLATE',
   ADD_OPERATION_LOG: 'ADD_OPERATION_LOG',
+  UPDATE_REVIEW_FLOW_CONFIG: 'UPDATE_REVIEW_FLOW_CONFIG',
+  INIT_REVIEW_FLOW_CONFIGS: 'INIT_REVIEW_FLOW_CONFIGS',
 }
 
 function reducer(state, action) {
@@ -42,6 +45,7 @@ function reducer(state, action) {
         departments: action.payload.departments,
         rejectTemplates: action.payload.rejectTemplates,
         operationLogs: action.payload.operationLogs,
+        reviewFlowConfigs: action.payload.reviewFlowConfigs,
         currentUser: action.payload.currentUser,
       }
     case actionTypes.SET_USER:
@@ -103,6 +107,14 @@ function reducer(state, action) {
                 rejectReason: action.payload.rejectReason || '',
                 reviewedAt: action.payload.reviewedAt,
                 publishDate: action.payload.publishDate || item.publishDate,
+                firstReviewerId: action.payload.firstReviewerId || item.firstReviewerId,
+                firstReviewerName: action.payload.firstReviewerName || item.firstReviewerName,
+                firstReviewedAt: action.payload.firstReviewedAt || item.firstReviewedAt,
+                finalReviewerId: action.payload.finalReviewerId || item.finalReviewerId,
+                finalReviewerName: action.payload.finalReviewerName || item.finalReviewerName,
+                finalReviewedAt: action.payload.finalReviewedAt || item.finalReviewedAt,
+                reviewStage: action.payload.reviewStage || item.reviewStage,
+                reviewHistory: action.payload.reviewHistory || item.reviewHistory,
               }
             : item
         ),
@@ -129,6 +141,18 @@ function reducer(state, action) {
         ...state,
         operationLogs: [action.payload, ...state.operationLogs],
       }
+    case actionTypes.INIT_REVIEW_FLOW_CONFIGS:
+      return {
+        ...state,
+        reviewFlowConfigs: action.payload,
+      }
+    case actionTypes.UPDATE_REVIEW_FLOW_CONFIG:
+      return {
+        ...state,
+        reviewFlowConfigs: state.reviewFlowConfigs.map((c) =>
+          c.id === action.payload.id ? action.payload : c
+        ),
+      }
     default:
       return state
   }
@@ -136,6 +160,22 @@ function reducer(state, action) {
 
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState)
+
+  const migrateArticles = (articles) => {
+    if (!articles || articles.length === 0) return []
+    return articles.map((article) => {
+      const migrated = { ...article }
+      if (migrated.firstReviewerId === undefined) migrated.firstReviewerId = ''
+      if (migrated.firstReviewerName === undefined) migrated.firstReviewerName = ''
+      if (migrated.firstReviewedAt === undefined) migrated.firstReviewedAt = ''
+      if (migrated.finalReviewerId === undefined) migrated.finalReviewerId = ''
+      if (migrated.finalReviewerName === undefined) migrated.finalReviewerName = ''
+      if (migrated.finalReviewedAt === undefined) migrated.finalReviewedAt = ''
+      if (migrated.reviewStage === undefined) migrated.reviewStage = ''
+      if (migrated.reviewHistory === undefined) migrated.reviewHistory = []
+      return migrated
+    })
+  }
 
   useEffect(() => {
     const initialized = storage.get(STORAGE_KEYS.INITIALIZED)
@@ -146,6 +186,8 @@ export function AppProvider({ children }) {
       storage.set(STORAGE_KEYS.DEPARTMENTS, departments)
       storage.set(STORAGE_KEYS.REJECT_TEMPLATES, rejectTemplates)
       storage.set(STORAGE_KEYS.REJECT_TEMPLATES_INITIALIZED, true)
+      storage.set(STORAGE_KEYS.REVIEW_FLOW_CONFIGS, reviewFlowConfigs)
+      storage.set(STORAGE_KEYS.REVIEW_FLOW_INITIALIZED, true)
       storage.set(STORAGE_KEYS.INITIALIZED, true)
     } else {
       const templatesInitialized = storage.get(STORAGE_KEYS.REJECT_TEMPLATES_INITIALIZED)
@@ -156,17 +198,27 @@ export function AppProvider({ children }) {
         }
         storage.set(STORAGE_KEYS.REJECT_TEMPLATES_INITIALIZED, true)
       }
+      const reviewFlowInitialized = storage.get(STORAGE_KEYS.REVIEW_FLOW_INITIALIZED)
+      if (!reviewFlowInitialized) {
+        storage.set(STORAGE_KEYS.REVIEW_FLOW_CONFIGS, reviewFlowConfigs)
+        storage.set(STORAGE_KEYS.REVIEW_FLOW_INITIALIZED, true)
+      }
+      const existingArticles = storage.get(STORAGE_KEYS.ARTICLES) || []
+      const migratedArticles = migrateArticles(existingArticles)
+      storage.set(STORAGE_KEYS.ARTICLES, migratedArticles)
     }
 
+    const loadedArticles = storage.get(STORAGE_KEYS.ARTICLES) || []
     dispatch({
       type: actionTypes.INIT_DATA,
       payload: {
-        articles: storage.get(STORAGE_KEYS.ARTICLES) || [],
+        articles: migrateArticles(loadedArticles),
         users: storage.get(STORAGE_KEYS.USERS) || [],
         categories: storage.get(STORAGE_KEYS.CATEGORIES) || [],
         departments: storage.get(STORAGE_KEYS.DEPARTMENTS) || [],
         rejectTemplates: storage.get(STORAGE_KEYS.REJECT_TEMPLATES) || [],
         operationLogs: storage.get(STORAGE_KEYS.OPERATION_LOGS) || [],
+        reviewFlowConfigs: storage.get(STORAGE_KEYS.REVIEW_FLOW_CONFIGS) || [],
         currentUser: storage.get(STORAGE_KEYS.CURRENT_USER),
       },
     })
@@ -206,8 +258,15 @@ export function AppProvider({ children }) {
     dispatch({ type: actionTypes.ADD_OPERATION_LOG, payload: log })
   }
 
+  const isTwoLevelReview = (categoryCode) => {
+    const config = state.reviewFlowConfigs.find((c) => c.categoryCode === categoryCode)
+    return config ? config.requireTwoLevel : false
+  }
+
   const addArticle = (article) => {
     const category = state.categories.find((c) => c.code === article.category)
+    const needTwoLevel = isTwoLevelReview(article.category)
+    const reviewStage = article.status === 'pending' && needTwoLevel ? 'first_pending' : ''
     const newArticle = {
       ...article,
       id: generateId(),
@@ -220,6 +279,14 @@ export function AppProvider({ children }) {
       reviewerId: '',
       reviewerName: '',
       rejectReason: '',
+      firstReviewerId: '',
+      firstReviewerName: '',
+      firstReviewedAt: '',
+      finalReviewerId: '',
+      finalReviewerName: '',
+      finalReviewedAt: '',
+      reviewStage,
+      reviewHistory: [],
     }
     const articles = [newArticle, ...state.articles]
     storage.set(STORAGE_KEYS.ARTICLES, articles)
@@ -237,6 +304,8 @@ export function AppProvider({ children }) {
     const now = formatDate(new Date())
     const newArticles = articles.map((article) => {
       const category = state.categories.find((c) => c.code === article.category)
+      const needTwoLevel = isTwoLevelReview(article.category)
+      const reviewStage = article.status === 'pending' && needTwoLevel ? 'first_pending' : ''
       return {
         ...article,
         id: generateId(),
@@ -249,6 +318,14 @@ export function AppProvider({ children }) {
         reviewerId: '',
         reviewerName: '',
         rejectReason: '',
+        firstReviewerId: '',
+        firstReviewerName: '',
+        firstReviewedAt: '',
+        finalReviewerId: '',
+        finalReviewerName: '',
+        finalReviewedAt: '',
+        reviewStage,
+        reviewHistory: [],
         deleted: false,
       }
     })
@@ -264,12 +341,20 @@ export function AppProvider({ children }) {
   const updateArticle = (id, updates) => {
     const article = state.articles.find((a) => a.id === id)
     if (!article) return null
-    const category = state.categories.find((c) => c.code === updates.category)
+    const category = state.categories.find((c) => c.code === (updates.category || article.category))
+    const needTwoLevel = isTwoLevelReview(updates.category || article.category)
+    let reviewStage = article.reviewStage
+    if (updates.status === 'pending') {
+      reviewStage = needTwoLevel ? 'first_pending' : ''
+    } else if (updates.status === 'draft') {
+      reviewStage = ''
+    }
     const updated = {
       ...article,
       ...updates,
       categoryName: category ? category.name : article.categoryName,
       updatedAt: formatDate(new Date()),
+      reviewStage,
     }
     const articles = state.articles.map((a) => (a.id === id ? updated : a))
     storage.set(STORAGE_KEYS.ARTICLES, articles)
@@ -320,31 +405,137 @@ export function AppProvider({ children }) {
     dispatch({ type: actionTypes.PERMANENT_DELETE_ARTICLE, payload: id })
   }
 
+  const addReviewHistoryItem = (articleId, historyItem) => {
+    const articles = state.articles.map((a) => {
+      if (a.id === articleId) {
+        return {
+          ...a,
+          reviewHistory: [...(a.reviewHistory || []), historyItem],
+        }
+      }
+      return a
+    })
+    storage.set(STORAGE_KEYS.ARTICLES, articles)
+    return articles
+  }
+
   const reviewArticle = (id, status, rejectReason = '') => {
     const article = state.articles.find((a) => a.id === id)
     if (!article) return null
+    const currentUser = state.currentUser
+    if (!currentUser) return null
+
+    const needTwoLevel = isTwoLevelReview(article.category)
+    const now = formatDate(new Date())
     const newPublishDate = status === 'published'
-      ? (article.publishDate || formatDate(new Date()))
+      ? (article.publishDate || now)
       : article.publishDate
+
+    let firstReviewerId = article.firstReviewerId
+    let firstReviewerName = article.firstReviewerName
+    let firstReviewedAt = article.firstReviewedAt
+    let finalReviewerId = article.finalReviewerId
+    let finalReviewerName = article.finalReviewerName
+    let finalReviewedAt = article.finalReviewedAt
+    let reviewStage = article.reviewStage
+    let reviewAction = ''
+    let historyStage = ''
+    let historyAction = ''
+
+    if (!needTwoLevel) {
+      firstReviewerId = currentUser.id
+      firstReviewerName = currentUser.name
+      firstReviewedAt = now
+      reviewStage = status === 'published' ? 'single_passed' : 'single_rejected'
+      reviewAction = status === 'published'
+        ? OPERATION_ACTIONS.REVIEW_PASS
+        : OPERATION_ACTIONS.REVIEW_REJECT
+      historyStage = 'single'
+      historyAction = status === 'published' ? 'pass' : 'reject'
+    } else {
+      if (currentUser.role === 'reviewer') {
+        firstReviewerId = currentUser.id
+        firstReviewerName = currentUser.name
+        firstReviewedAt = now
+        if (status === 'first_reviewed') {
+          reviewStage = 'first_passed'
+          reviewAction = OPERATION_ACTIONS.FIRST_REVIEW_PASS
+          historyStage = 'first'
+          historyAction = 'pass'
+        } else if (status === 'rejected') {
+          reviewStage = 'first_rejected'
+          reviewAction = OPERATION_ACTIONS.FIRST_REVIEW_REJECT
+          historyStage = 'first'
+          historyAction = 'reject'
+        }
+      } else if (currentUser.role === 'senior_reviewer') {
+        finalReviewerId = currentUser.id
+        finalReviewerName = currentUser.name
+        finalReviewedAt = now
+        if (status === 'published') {
+          reviewStage = 'final_passed'
+          reviewAction = OPERATION_ACTIONS.FINAL_REVIEW_PASS
+          historyStage = 'final'
+          historyAction = 'pass'
+        } else if (status === 'rejected') {
+          reviewStage = 'final_rejected'
+          reviewAction = OPERATION_ACTIONS.FINAL_REVIEW_REJECT
+          historyStage = 'final'
+          historyAction = 'reject'
+        }
+      }
+    }
+
+    const historyItem = {
+      id: generateId(),
+      stage: historyStage,
+      action: historyAction,
+      status,
+      reviewerId: currentUser.id,
+      reviewerName: currentUser.name,
+      reviewerRole: currentUser.role,
+      reviewTime: now,
+      comment: rejectReason || '',
+    }
+
+    const updatedHistory = [...(article.reviewHistory || []), historyItem]
+
     const reviewData = {
       id,
       status,
-      reviewerId: state.currentUser.id,
-      reviewerName: state.currentUser.name,
+      reviewerId: currentUser.id,
+      reviewerName: currentUser.name,
       rejectReason,
-      reviewedAt: formatDate(new Date()),
+      reviewedAt: now,
       publishDate: newPublishDate,
+      firstReviewerId,
+      firstReviewerName,
+      firstReviewedAt,
+      finalReviewerId,
+      finalReviewerName,
+      finalReviewedAt,
+      reviewStage,
+      reviewHistory: updatedHistory,
     }
+
     const articles = state.articles.map((a) => {
       if (a.id === id) {
         return {
           ...a,
           status,
-          reviewerId: reviewData.reviewerId,
-          reviewerName: reviewData.reviewerName,
+          reviewerId: currentUser.id,
+          reviewerName: currentUser.name,
           rejectReason,
-          reviewedAt: reviewData.reviewedAt,
+          reviewedAt: now,
           publishDate: newPublishDate,
+          firstReviewerId,
+          firstReviewerName,
+          firstReviewedAt,
+          finalReviewerId,
+          finalReviewerName,
+          finalReviewedAt,
+          reviewStage,
+          reviewHistory: updatedHistory,
         }
       }
       return a
@@ -352,10 +543,21 @@ export function AppProvider({ children }) {
     storage.set(STORAGE_KEYS.ARTICLES, articles)
     dispatch({ type: actionTypes.REVIEW_ARTICLE, payload: reviewData })
 
-    const action = status === 'published'
-      ? OPERATION_ACTIONS.REVIEW_PASS
-      : OPERATION_ACTIONS.REVIEW_REJECT
-    addOperationLog(action, article.title)
+    addOperationLog(reviewAction, article.title)
+  }
+
+  const updateReviewFlowConfig = (id, updates) => {
+    const config = state.reviewFlowConfigs.find((c) => c.id === id)
+    if (!config) return null
+    const updated = { ...config, ...updates }
+    const configs = state.reviewFlowConfigs.map((c) => (c.id === id ? updated : c))
+    storage.set(STORAGE_KEYS.REVIEW_FLOW_CONFIGS, configs)
+    dispatch({ type: actionTypes.UPDATE_REVIEW_FLOW_CONFIG, payload: updated })
+    return updated
+  }
+
+  const getReviewFlowConfig = (categoryCode) => {
+    return state.reviewFlowConfigs.find((c) => c.categoryCode === categoryCode) || null
   }
 
   const getArticleById = (id) => {
@@ -464,6 +666,9 @@ export function AppProvider({ children }) {
         updateRejectTemplate,
         deleteRejectTemplate,
         getOperationLogs,
+        isTwoLevelReview,
+        updateReviewFlowConfig,
+        getReviewFlowConfig,
       }}
     >
       {children}

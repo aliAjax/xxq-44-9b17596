@@ -7,6 +7,8 @@ const STORAGE_KEYS = {
   REJECT_TEMPLATES: 'gov_reject_templates',
   REJECT_TEMPLATES_INITIALIZED: 'gov_reject_templates_initialized',
   OPERATION_LOGS: 'gov_operation_logs',
+  REVIEW_FLOW_CONFIGS: 'gov_review_flow_configs',
+  REVIEW_FLOW_INITIALIZED: 'gov_review_flow_initialized',
   INITIALIZED: 'gov_initialized',
 }
 

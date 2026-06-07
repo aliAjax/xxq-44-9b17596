@@ -8,6 +8,10 @@ export const OPERATION_ACTIONS = {
   SUBMIT_REVIEW: 'submit_review',
   REVIEW_PASS: 'review_pass',
   REVIEW_REJECT: 'review_reject',
+  FIRST_REVIEW_PASS: 'first_review_pass',
+  FIRST_REVIEW_REJECT: 'first_review_reject',
+  FINAL_REVIEW_PASS: 'final_review_pass',
+  FINAL_REVIEW_REJECT: 'final_review_reject',
   DELETE: 'delete',
   RESTORE: 'restore',
   BATCH_IMPORT: 'batch_import',
@@ -20,6 +24,10 @@ export const getActionText = (action) => {
     [OPERATION_ACTIONS.SUBMIT_REVIEW]: '提交审核',
     [OPERATION_ACTIONS.REVIEW_PASS]: '审核通过',
     [OPERATION_ACTIONS.REVIEW_REJECT]: '审核退回',
+    [OPERATION_ACTIONS.FIRST_REVIEW_PASS]: '初审通过',
+    [OPERATION_ACTIONS.FIRST_REVIEW_REJECT]: '初审退回',
+    [OPERATION_ACTIONS.FINAL_REVIEW_PASS]: '终审通过',
+    [OPERATION_ACTIONS.FINAL_REVIEW_REJECT]: '终审退回',
     [OPERATION_ACTIONS.DELETE]: '删除',
     [OPERATION_ACTIONS.RESTORE]: '恢复',
     [OPERATION_ACTIONS.BATCH_IMPORT]: '批量导入',
@@ -34,6 +42,10 @@ export const getActionColor = (action) => {
     [OPERATION_ACTIONS.SUBMIT_REVIEW]: 'bg-orange-100 text-orange-700',
     [OPERATION_ACTIONS.REVIEW_PASS]: 'bg-green-100 text-green-700',
     [OPERATION_ACTIONS.REVIEW_REJECT]: 'bg-red-100 text-red-700',
+    [OPERATION_ACTIONS.FIRST_REVIEW_PASS]: 'bg-blue-100 text-blue-700',
+    [OPERATION_ACTIONS.FIRST_REVIEW_REJECT]: 'bg-red-100 text-red-700',
+    [OPERATION_ACTIONS.FINAL_REVIEW_PASS]: 'bg-green-100 text-green-700',
+    [OPERATION_ACTIONS.FINAL_REVIEW_REJECT]: 'bg-red-100 text-red-700',
     [OPERATION_ACTIONS.DELETE]: 'bg-red-100 text-red-700',
     [OPERATION_ACTIONS.RESTORE]: 'bg-emerald-100 text-emerald-700',
     [OPERATION_ACTIONS.BATCH_IMPORT]: 'bg-purple-100 text-purple-700',
@@ -61,24 +73,56 @@ export const formatDateTime = (dateString) => {
   return `${year}-${month}-${day} ${hours}:${minutes}`
 }
 
-export const getStatusText = (status) => {
+export const getStatusText = (status, reviewStage = '') => {
+  if (status === 'pending' && reviewStage === 'first_pending') {
+    return '待初审'
+  }
+  if (status === 'first_reviewed') {
+    return '待复审'
+  }
   const statusMap = {
     draft: '草稿',
     pending: '待审核',
+    first_reviewed: '待复审',
     published: '已发布',
     rejected: '已退回',
   }
   return statusMap[status] || status
 }
 
-export const getStatusColor = (status) => {
+export const getStatusColor = (status, reviewStage = '') => {
+  if (status === 'first_reviewed') {
+    return 'bg-blue-100 text-blue-700'
+  }
+  if (status === 'pending' && reviewStage === 'first_pending') {
+    return 'bg-orange-100 text-orange-700'
+  }
   const colorMap = {
     draft: 'bg-gray-100 text-gray-700',
     pending: 'bg-orange-100 text-orange-700',
+    first_reviewed: 'bg-blue-100 text-blue-700',
     published: 'bg-green-100 text-green-700',
     rejected: 'bg-red-100 text-red-700',
   }
   return colorMap[status] || 'bg-gray-100 text-gray-700'
+}
+
+export const getReviewStageText = (stage) => {
+  const stageMap = {
+    single: '一级审核',
+    first: '初审',
+    final: '终审',
+  }
+  return stageMap[stage] || stage
+}
+
+export const getReviewStageColor = (stage) => {
+  const colorMap = {
+    single: 'bg-gray-100 text-gray-700',
+    first: 'bg-blue-100 text-blue-700',
+    final: 'bg-purple-100 text-purple-700',
+  }
+  return colorMap[stage] || 'bg-gray-100 text-gray-700'
 }
 
 export const stripHtml = (html) => {
@@ -96,7 +140,8 @@ export const truncateText = (text, maxLength = 100) => {
 export const getRoleText = (role) => {
   const roleMap = {
     editor: '工作人员',
-    reviewer: '审核人员',
+    reviewer: '初审人员',
+    senior_reviewer: '复核人员',
   }
   return roleMap[role] || role
 }

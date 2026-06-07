@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
-import { Building2, User, Lock, Shield } from 'lucide-react'
+import { Building2, User, Lock, Shield, Crown } from 'lucide-react'
 import { useApp } from '../context/useApp'
 
 export default function Login() {
@@ -15,7 +15,9 @@ export default function Login() {
   const from = location.state?.from?.pathname || null
 
   const getDefaultRedirect = (userRole) => {
-    return userRole === 'editor' ? '/admin/articles' : '/admin/dashboard'
+    if (userRole === 'editor') return '/admin/articles'
+    if (userRole === 'senior_reviewer') return '/admin/dashboard'
+    return '/admin/dashboard'
   }
 
   const isEditorRoute = (path) => {
@@ -33,6 +35,16 @@ export default function Login() {
     return (
       path?.startsWith('/admin/dashboard') ||
       path?.startsWith('/admin/review') ||
+      path?.startsWith('/admin/review-flow') ||
+      path?.startsWith('/admin/operation-logs')
+    )
+  }
+
+  const isSeniorReviewerRoute = (path) => {
+    return (
+      path?.startsWith('/admin/dashboard') ||
+      path?.startsWith('/admin/review') ||
+      path?.startsWith('/admin/review-flow') ||
       path?.startsWith('/admin/operation-logs')
     )
   }
@@ -40,9 +52,14 @@ export default function Login() {
   if (state.currentUser) {
     let redirectPath = getDefaultRedirect(state.currentUser.role)
     if (from) {
-      const roleMatch =
-        (state.currentUser.role === 'editor' && isEditorRoute(from)) ||
-        (state.currentUser.role === 'reviewer' && isReviewerRoute(from))
+      let roleMatch = false
+      if (state.currentUser.role === 'editor') {
+        roleMatch = isEditorRoute(from)
+      } else if (state.currentUser.role === 'reviewer') {
+        roleMatch = isReviewerRoute(from)
+      } else if (state.currentUser.role === 'senior_reviewer') {
+        roleMatch = isSeniorReviewerRoute(from)
+      }
       if (roleMatch) {
         redirectPath = from
       }
@@ -93,30 +110,42 @@ export default function Login() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 用户角色
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setRole('editor')}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border transition-all ${
+                  className={`flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-lg border transition-all ${
                     role === 'editor'
                       ? 'border-primary-600 bg-primary-50 text-primary-700 font-medium'
                       : 'border-gray-200 text-gray-600 hover:border-gray-300'
                   }`}
                 >
-                  <User className="w-4 h-4" />
-                  工作人员
+                  <User className="w-5 h-5" />
+                  <span className="text-xs">工作人员</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setRole('reviewer')}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border transition-all ${
+                  className={`flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-lg border transition-all ${
                     role === 'reviewer'
                       ? 'border-primary-600 bg-primary-50 text-primary-700 font-medium'
                       : 'border-gray-200 text-gray-600 hover:border-gray-300'
                   }`}
                 >
-                  <Shield className="w-4 h-4" />
-                  审核人员
+                  <Shield className="w-5 h-5" />
+                  <span className="text-xs">初审人员</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole('senior_reviewer')}
+                  className={`flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-lg border transition-all ${
+                    role === 'senior_reviewer'
+                      ? 'border-primary-600 bg-primary-50 text-primary-700 font-medium'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <Crown className="w-5 h-5" />
+                  <span className="text-xs">复核人员</span>
                 </button>
               </div>
             </div>
@@ -170,7 +199,8 @@ export default function Login() {
 
           <div className="mt-6 pt-6 border-t border-gray-100 text-center text-xs text-gray-400">
             <p>测试账号：editor / 123456（工作人员）</p>
-            <p>测试账号：reviewer / 123456（审核人员）</p>
+            <p>测试账号：reviewer / 123456（初审人员）</p>
+            <p>测试账号：senior / 123456（复核人员）</p>
           </div>
         </div>
 

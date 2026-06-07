@@ -1,15 +1,17 @@
 import { useState, useMemo } from 'react'
-import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate } from 'lucide-react'
+import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate, History, Clock } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
 import RejectTemplateManager from '../components/RejectTemplateManager'
 import { useApp } from '../context/useApp'
+import { getReviewStageText, getReviewStageColor } from '../utils/helpers'
 
 const PAGE_SIZE = 10
 
 export default function ReviewList() {
-  const { state, reviewArticle } = useApp()
+  const { state, reviewArticle, isTwoLevelReview } = useApp()
+  const currentUser = state.currentUser
   const [activeTab, setActiveTab] = useState('pending')
   const [currentPage, setCurrentPage] = useState(1)
   const [keyword, setKeyword] = useState('')
@@ -19,14 +21,29 @@ export default function ReviewList() {
   const [showTemplatePanel, setShowTemplatePanel] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [detailArticle, setDetailArticle] = useState(null)
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [historyArticle, setHistoryArticle] = useState(null)
+
+  const userRole = currentUser?.role
+
+  const isArticlePendingForUser = (article) => {
+    if (article.status !== 'pending' && article.status !== 'first_reviewed') return false
+    if (userRole === 'reviewer') {
+      return article.status === 'pending'
+    }
+    if (userRole === 'senior_reviewer') {
+      return article.status === 'first_reviewed'
+    }
+    return false
+  }
 
   const filteredArticles = useMemo(() => {
     let result = state.articles.filter((a) => !a.deleted)
 
     if (activeTab === 'pending') {
-      result = result.filter((a) => a.status === 'pending')
+      result = result.filter((a) => isArticlePendingForUser(a))
     } else {
-      result = result.filter((a) => a.status === 'published' || a.status === 'rejected')
+      result = result.filter((a) => a.status === 'published' || a.status === 'rejected' || a.status === 'first_reviewed')
     }
 
     if (keyword) {
@@ -42,7 +59,11 @@ export default function ReviewList() {
     })
 
     return result
-  }, [state.articles, activeTab, keyword])
+  }, [state.articles, activeTab, keyword, userRole])
+
+  const pendingCount = useMemo(() => {
+    return state.articles.filter((a) => !a.deleted && isArticlePendingForUser(a)).length
+  }, [state.articles, userRole])
 
   const totalPages = Math.ceil(filteredArticles.length / PAGE_SIZE)
   const paginatedArticles = filteredArticles.slice(
@@ -50,9 +71,54 @@ export default function ReviewList() {
     currentPage * PAGE_SIZE
   )
 
+  const getApproveStatus = (article) => {
+    const needTwoLevel = isTwoLevelReview(article.category)
+    if (!needTwoLevel) {
+      return 'published'
+    }
+    if (userRole === 'reviewer') {
+      return 'first_reviewed'
+    }
+    if (userRole === 'senior_reviewer') {
+      return 'published'
+    }
+    return 'published'
+  }
+
+  const getApproveText = (article) => {
+    const needTwoLevel = isTwoLevelReview(article.category)
+    if (!needTwoLevel) {
+      return '审核通过'
+    }
+    if (userRole === 'reviewer') {
+      return '初审通过'
+    }
+    if (userRole === 'senior_reviewer') {
+      return '终审通过'
+    }
+    return '审核通过'
+  }
+
+  const getRejectText = (article) => {
+    const needTwoLevel = isTwoLevelReview(article.category)
+    if (!needTwoLevel) {
+      return '审核退回'
+    }
+    if (userRole === 'reviewer') {
+      return '初审退回'
+    }
+    if (userRole === 'senior_reviewer') {
+      return '终审退回'
+    }
+    return '审核退回'
+  }
+
   const handleApprove = (id) => {
-    if (window.confirm('确定要审核通过这条信息吗？')) {
-      reviewArticle(id, 'published')
+    const article = state.articles.find((a) => a.id === id)
+    if (!article) return
+    const newStatus = getApproveStatus(article)
+    if (window.confirm(`确定要${getApproveText(article)}这条信息吗？`)) {
+      reviewArticle(id, newStatus)
     }
   }
 
@@ -84,6 +150,18 @@ export default function ReviewList() {
     setShowDetailModal(true)
   }
 
+  const handleViewHistory = (article) => {
+    setHistoryArticle(article)
+    setShowHistoryModal(true)
+  }
+
+  const getPendingTabLabel = () => {
+    if (userRole === 'senior_reviewer') {
+      return '待复审'
+    }
+    return '待审核'
+  }
+
   return (
     <AdminLayout>
       <div className="mb-6">
@@ -105,9 +183,9 @@ export default function ReviewList() {
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              待审核
+              {getPendingTabLabel()}
               <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full">
-                {state.articles.filter((a) => a.status === 'pending' && !a.deleted).length}
+                {pendingCount}
               </span>
             </button>
             <button
@@ -175,7 +253,7 @@ export default function ReviewList() {
                     审核时间
                   </th>
                 )}
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-40">
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-48">
                   操作
                 </th>
               </tr>
@@ -206,7 +284,7 @@ export default function ReviewList() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <StatusTag status={article.status} />
+                      <StatusTag status={article.status} reviewStage={article.reviewStage} />
                     </td>
                     {activeTab === 'reviewed' && (
                       <td className="px-4 py-3">
@@ -224,19 +302,26 @@ export default function ReviewList() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        {activeTab === 'pending' && (
+                        <button
+                          onClick={() => handleViewHistory(article)}
+                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                          title="审核历史"
+                        >
+                          <History className="w-4 h-4" />
+                        </button>
+                        {isArticlePendingForUser(article) && (
                           <>
                             <button
                               onClick={() => handleApprove(article.id)}
                               className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                              title="通过"
+                              title={getApproveText(article)}
                             >
                               <CheckCircle className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleReject(article.id)}
                               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                              title="退回"
+                              title={getRejectText(article)}
                             >
                               <XCircle className="w-4 h-4" />
                             </button>
@@ -278,7 +363,12 @@ export default function ReviewList() {
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
                 <XCircle className="w-5 h-5 text-red-600" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900">退回审核</h3>
+              <h3 className="text-lg font-bold text-gray-900">
+                {(() => {
+                  const article = state.articles.find((a) => a.id === rejectArticleId)
+                  return article ? getRejectText(article) : '退回审核'
+                })()}
+              </h3>
             </div>
             <p className="text-gray-600 text-sm mb-4">
               请填写退回原因，以便编辑人员修改完善。
@@ -363,11 +453,16 @@ export default function ReviewList() {
               <h2 className="text-xl font-bold text-gray-900 mb-4">
                 {detailArticle.title}
               </h2>
-              <div className="flex items-center gap-4 text-sm text-gray-500 mb-6 pb-4 border-b">
+              <div className="flex items-center gap-4 text-sm text-gray-500 mb-6 pb-4 border-b flex-wrap">
                 <span>{detailArticle.categoryName}</span>
                 <span>{detailArticle.department}</span>
                 <span>提交人：{detailArticle.authorName}</span>
-                <StatusTag status={detailArticle.status} />
+                <StatusTag status={detailArticle.status} reviewStage={detailArticle.reviewStage} />
+                {isTwoLevelReview(detailArticle.category) && (
+                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                    二级审核
+                  </span>
+                )}
               </div>
               <div
                 className="prose max-w-none text-gray-700"
@@ -387,20 +482,59 @@ export default function ReviewList() {
                   </div>
                 </div>
               )}
+              {detailArticle.reviewHistory && detailArticle.reviewHistory.length > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <History className="w-5 h-5 text-purple-600" />
+                    <span className="font-medium text-gray-800">审核历史</span>
+                  </div>
+                  <div className="space-y-2">
+                    {detailArticle.reviewHistory.map((item) => (
+                      <div key={item.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${getReviewStageColor(item.stage)}`}>
+                          <Clock className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-800">
+                              {item.reviewerName}
+                            </span>
+                            <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">
+                              {getReviewStageText(item.stage)}
+                            </span>
+                            <span className={`text-xs px-2 py-0.5 rounded ${
+                              item.action === 'pass' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                              {item.action === 'pass' ? '通过' : '退回'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {item.reviewTime}
+                          </div>
+                          {item.comment && (
+                            <div className="text-sm text-gray-600 mt-2">
+                              {item.comment}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
-              {activeTab === 'pending' && (
+              {isArticlePendingForUser(detailArticle) && (
                 <>
                   <button
                     onClick={() => {
                       setShowDetailModal(false)
-                      setDetailArticle(null)
                       handleApprove(detailArticle.id)
                     }}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
                   >
                     <CheckCircle className="w-4 h-4" />
-                    审核通过
+                    {getApproveText(detailArticle)}
                   </button>
                   <button
                     onClick={() => {
@@ -410,9 +544,88 @@ export default function ReviewList() {
                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center gap-2"
                   >
                     <XCircle className="w-4 h-4" />
-                    审核退回
+                    {getRejectText(detailArticle)}
                   </button>
                 </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHistoryModal && historyArticle && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[70vh] overflow-hidden flex flex-col fade-in">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <History className="w-5 h-5 text-purple-600" />
+                <h3 className="text-lg font-bold text-gray-900">审核历史</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowHistoryModal(false)
+                  setHistoryArticle(null)
+                }}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+              >
+                <svg
+                  className="w-5 h-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="mb-4 pb-4 border-b">
+                <div className="text-sm font-medium text-gray-800">{historyArticle.title}</div>
+                <div className="text-xs text-gray-500 mt-1">{historyArticle.categoryName}</div>
+              </div>
+              {historyArticle.reviewHistory && historyArticle.reviewHistory.length > 0 ? (
+                <div className="space-y-3">
+                  {historyArticle.reviewHistory.map((item) => (
+                    <div key={item.id} className="flex items-start gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${getReviewStageColor(item.stage)}`}>
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-800">
+                            {item.reviewerName}
+                          </span>
+                          <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">
+                            {getReviewStageText(item.stage)}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            item.action === 'pass' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {item.action === 'pass' ? '通过' : '退回'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {item.reviewTime}
+                        </div>
+                        {item.comment && (
+                          <div className="text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded">
+                            {item.comment}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-400">
+                  <History className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-sm">暂无审核历史</p>
+                </div>
               )}
             </div>
           </div>

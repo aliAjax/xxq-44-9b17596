@@ -11,15 +11,19 @@ import {
   FileText,
   MessageSquare,
   BookTemplate,
+  History,
 } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import RejectTemplateManager from '../components/RejectTemplateManager'
 import { useApp } from '../context/useApp'
+import { getReviewStageText, getReviewStageColor } from '../utils/helpers'
 
 export default function ReviewDashboard() {
-  const { state, reviewArticle } = useApp()
+  const { state, reviewArticle, isTwoLevelReview } = useApp()
   const navigate = useNavigate()
+  const currentUser = state.currentUser
+  const userRole = currentUser?.role
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [detailArticle, setDetailArticle] = useState(null)
   const [showRejectModal, setShowRejectModal] = useState(false)
@@ -27,28 +31,81 @@ export default function ReviewDashboard() {
   const [rejectReason, setRejectReason] = useState('')
   const [showTemplatePanel, setShowTemplatePanel] = useState(false)
 
+  const isArticlePendingForUser = (article) => {
+    if (article.status !== 'pending' && article.status !== 'first_reviewed') return false
+    if (userRole === 'reviewer') {
+      return article.status === 'pending'
+    }
+    if (userRole === 'senior_reviewer') {
+      return article.status === 'first_reviewed'
+    }
+    return false
+  }
+
   const stats = useMemo(() => {
-    const pending = state.articles.filter((a) => a.status === 'pending' && !a.deleted).length
+    const pending = state.articles.filter((a) => !a.deleted && isArticlePendingForUser(a)).length
     const published = state.articles.filter((a) => a.status === 'published' && !a.deleted).length
     const rejected = state.articles.filter((a) => a.status === 'rejected' && !a.deleted).length
     return { pending, published, rejected }
-  }, [state.articles])
+  }, [state.articles, userRole])
 
   const categoryStats = useMemo(() => {
-    const pendingArticles = state.articles.filter((a) => a.status === 'pending' && !a.deleted)
+    const pendingArticles = state.articles.filter((a) => !a.deleted && isArticlePendingForUser(a))
     const stats = state.categories.map((cat) => {
       const count = pendingArticles.filter((a) => a.category === cat.code).length
       return { ...cat, count }
     })
     return stats
-  }, [state.articles, state.categories])
+  }, [state.articles, state.categories, userRole])
 
   const recentPending = useMemo(() => {
     return state.articles
-      .filter((a) => a.status === 'pending' && !a.deleted)
+      .filter((a) => !a.deleted && isArticlePendingForUser(a))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 5)
-  }, [state.articles])
+  }, [state.articles, userRole])
+
+  const getApproveStatus = (article) => {
+    const needTwoLevel = isTwoLevelReview(article.category)
+    if (!needTwoLevel) {
+      return 'published'
+    }
+    if (userRole === 'reviewer') {
+      return 'first_reviewed'
+    }
+    if (userRole === 'senior_reviewer') {
+      return 'published'
+    }
+    return 'published'
+  }
+
+  const getApproveText = (article) => {
+    const needTwoLevel = isTwoLevelReview(article.category)
+    if (!needTwoLevel) {
+      return '审核通过'
+    }
+    if (userRole === 'reviewer') {
+      return '初审通过'
+    }
+    if (userRole === 'senior_reviewer') {
+      return '终审通过'
+    }
+    return '审核通过'
+  }
+
+  const getRejectText = (article) => {
+    const needTwoLevel = isTwoLevelReview(article.category)
+    if (!needTwoLevel) {
+      return '审核退回'
+    }
+    if (userRole === 'reviewer') {
+      return '初审退回'
+    }
+    if (userRole === 'senior_reviewer') {
+      return '终审退回'
+    }
+    return '审核退回'
+  }
 
   const handleViewDetail = (article) => {
     setDetailArticle(article)
@@ -56,8 +113,11 @@ export default function ReviewDashboard() {
   }
 
   const handleApprove = (id) => {
-    if (window.confirm('确定要审核通过这条信息吗？')) {
-      reviewArticle(id, 'published')
+    const article = state.articles.find((a) => a.id === id)
+    if (!article) return
+    const newStatus = getApproveStatus(article)
+    if (window.confirm(`确定要${getApproveText(article)}这条信息吗？`)) {
+      reviewArticle(id, newStatus)
       setShowDetailModal(false)
       setDetailArticle(null)
     }
@@ -95,7 +155,7 @@ export default function ReviewDashboard() {
 
   const statCards = [
     {
-      label: '待审核',
+      label: userRole === 'senior_reviewer' ? '待复审' : '待审核',
       value: stats.pending,
       icon: Clock,
       color: 'orange',
@@ -224,7 +284,7 @@ export default function ReviewDashboard() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <StatusTag status={article.status} />
+                      <StatusTag status={article.status} reviewStage={article.reviewStage} />
                       <button
                         className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
                         title="查看详情"
@@ -278,11 +338,16 @@ export default function ReviewDashboard() {
             </div>
             <div className="flex-1 overflow-y-auto p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">{detailArticle.title}</h2>
-              <div className="flex items-center gap-4 text-sm text-gray-500 mb-6 pb-4 border-b">
+              <div className="flex items-center gap-4 text-sm text-gray-500 mb-6 pb-4 border-b flex-wrap">
                 <span>{detailArticle.categoryName}</span>
                 <span>{detailArticle.department}</span>
                 <span>提交人：{detailArticle.authorName}</span>
-                <StatusTag status={detailArticle.status} />
+                <StatusTag status={detailArticle.status} reviewStage={detailArticle.reviewStage} />
+                {isTwoLevelReview(detailArticle.category) && (
+                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                    二级审核
+                  </span>
+                )}
               </div>
               <div
                 className="prose max-w-none text-gray-700"
@@ -300,16 +365,56 @@ export default function ReviewDashboard() {
                   </div>
                 </div>
               )}
+              {detailArticle.reviewHistory && detailArticle.reviewHistory.length > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <History className="w-5 h-5 text-purple-600" />
+                    <span className="font-medium text-gray-800">审核历史</span>
+                  </div>
+                  <div className="space-y-2">
+                    {detailArticle.reviewHistory.map((item) => (
+                      <div key={item.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${getReviewStageColor(item.stage)}`}>
+                          <Clock className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-800">
+                              {item.reviewerName}
+                            </span>
+                            <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">
+                              {getReviewStageText(item.stage)}
+                            </span>
+                            <span className={`text-xs px-2 py-0.5 rounded ${
+                              item.action === 'pass' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                              {item.action === 'pass' ? '通过' : '退回'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {item.reviewTime}
+                          </div>
+                          {item.comment && (
+                            <div className="text-sm text-gray-600 mt-2">
+                              {item.comment}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
-              {detailArticle.status === 'pending' && (
+              {isArticlePendingForUser(detailArticle) && (
                 <>
                   <button
                     onClick={() => handleApprove(detailArticle.id)}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
                   >
                     <CheckCircle className="w-4 h-4" />
-                    审核通过
+                    {getApproveText(detailArticle)}
                   </button>
                   <button
                     onClick={() => {
@@ -318,7 +423,7 @@ export default function ReviewDashboard() {
                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center gap-2"
                   >
                     <XCircle className="w-4 h-4" />
-                    审核退回
+                    {getRejectText(detailArticle)}
                   </button>
                 </>
               )}
@@ -334,7 +439,12 @@ export default function ReviewDashboard() {
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
                 <XCircle className="w-5 h-5 text-red-600" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900">退回审核</h3>
+              <h3 className="text-lg font-bold text-gray-900">
+                {(() => {
+                  const article = state.articles.find((a) => a.id === rejectArticleId)
+                  return article ? getRejectText(article) : '退回审核'
+                })()}
+              </h3>
             </div>
             <p className="text-gray-600 text-sm mb-4">请填写退回原因，以便编辑人员修改完善。</p>
 

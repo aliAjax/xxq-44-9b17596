@@ -9,6 +9,7 @@ import ArticleEdit from './pages/ArticleEdit'
 import BatchImport from './pages/BatchImport'
 import ReviewList from './pages/ReviewList'
 import ReviewDashboard from './pages/ReviewDashboard'
+import ReviewFlowConfig from './pages/ReviewFlowConfig'
 import RecycleBin from './pages/RecycleBin'
 import DepartmentStats from './pages/DepartmentStats'
 import PublishCalendar from './pages/PublishCalendar'
@@ -86,7 +87,7 @@ function App() {
       <Route
         path="/admin/dashboard"
         element={
-          <ProtectedRoute allowedRoles={['reviewer']}>
+          <ProtectedRoute allowedRoles={['reviewer', 'senior_reviewer']}>
             <ReviewDashboard />
           </ProtectedRoute>
         }
@@ -95,8 +96,17 @@ function App() {
       <Route
         path="/admin/review"
         element={
-          <ProtectedRoute allowedRoles={['reviewer']}>
+          <ProtectedRoute allowedRoles={['reviewer', 'senior_reviewer']}>
             <ReviewList />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/review-flow"
+        element={
+          <ProtectedRoute allowedRoles={['senior_reviewer']}>
+            <ReviewFlowConfig />
           </ProtectedRoute>
         }
       />
@@ -104,7 +114,7 @@ function App() {
       <Route
         path="/admin/operation-logs"
         element={
-          <ProtectedRoute allowedRoles={['editor', 'reviewer']}>
+          <ProtectedRoute allowedRoles={['editor', 'reviewer', 'senior_reviewer']}>
             <OperationLog />
           </ProtectedRoute>
         }

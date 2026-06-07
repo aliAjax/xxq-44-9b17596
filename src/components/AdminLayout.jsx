@@ -1,6 +1,7 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2, BarChart3, Trash2, PieChart, Calendar, ClipboardList, Upload } from 'lucide-react'
+import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2, BarChart3, Trash2, PieChart, Calendar, ClipboardList, Upload, Settings, GitBranch } from 'lucide-react'
 import { useApp } from '../context/useApp'
+import { getRoleText } from '../utils/helpers'
 
 export default function AdminLayout({ children }) {
   const { state, logout } = useApp()
@@ -48,19 +49,25 @@ export default function AdminLayout({ children }) {
       path: '/admin/dashboard',
       label: '审核工作台',
       icon: BarChart3,
-      roles: ['reviewer'],
+      roles: ['reviewer', 'senior_reviewer'],
     },
     {
       path: '/admin/review',
       label: '审核管理',
       icon: CheckSquare,
-      roles: ['reviewer'],
+      roles: ['reviewer', 'senior_reviewer'],
+    },
+    {
+      path: '/admin/review-flow',
+      label: '审核流配置',
+      icon: GitBranch,
+      roles: ['senior_reviewer'],
     },
     {
       path: '/admin/operation-logs',
       label: '操作记录',
       icon: ClipboardList,
-      roles: ['editor', 'reviewer'],
+      roles: ['editor', 'reviewer', 'senior_reviewer'],
     },
   ]
 
@@ -84,7 +91,7 @@ export default function AdminLayout({ children }) {
                 <User className="w-4 h-4" />
                 <span>{currentUser?.name}</span>
                 <span className="text-primary-300">
-                  ({currentUser?.role === 'editor' ? '工作人员' : '审核人员'})
+                  ({getRoleText(currentUser?.role)})
                 </span>
               </div>
               <button

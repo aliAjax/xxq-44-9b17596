@@ -86,6 +86,7 @@ export default function ArticleList() {
               <option value="">全部状态</option>
               <option value="draft">草稿</option>
               <option value="pending">待审核</option>
+              <option value="first_reviewed">待复审</option>
               <option value="published">已发布</option>
               <option value="rejected">已退回</option>
             </select>
@@ -165,7 +166,7 @@ export default function ArticleList() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <StatusTag status={article.status} />
+                      <StatusTag status={article.status} reviewStage={article.reviewStage} />
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-gray-500">{article.createdAt}</span>
