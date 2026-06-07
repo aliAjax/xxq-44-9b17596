@@ -3,6 +3,7 @@ import Home from './pages/Home'
 import Detail from './pages/Detail'
 import CatalogList from './pages/CatalogList'
 import CatalogDetail from './pages/CatalogDetail'
+import AdvancedSearch from './pages/AdvancedSearch'
 import Login from './pages/Login'
 import ArticleList from './pages/ArticleList'
 import ArticleEdit from './pages/ArticleEdit'
@@ -26,6 +27,7 @@ function App() {
       <Route path="/detail/:id" element={<Detail />} />
       <Route path="/catalog" element={<CatalogList />} />
       <Route path="/catalog/:category" element={<CatalogDetail />} />
+      <Route path="/search" element={<AdvancedSearch />} />
       <Route path="/admin/login" element={<Login />} />
 
       <Route

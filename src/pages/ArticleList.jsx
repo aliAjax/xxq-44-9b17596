@@ -1,22 +1,59 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Edit2, Trash2, Send, Eye, Upload, Clock, X, Building, Calendar, Paperclip, User, XCircle } from 'lucide-react'
+import {
+  Plus,
+  Search,
+  Edit2,
+  Trash2,
+  Send,
+  Eye,
+  Upload,
+  Clock,
+  X,
+  Building,
+  Calendar,
+  Paperclip,
+  User,
+  XCircle,
+  SlidersHorizontal,
+} from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
+import AdvancedFilterForm from '../components/AdvancedFilterForm'
 import VersionHistoryModal from '../components/VersionHistoryModal'
 import { useApp } from '../context/useApp'
-import { getValidationRules, validateArticle, getActiveCategories } from '../utils/helpers'
+import {
+  getValidationRules,
+  validateArticle,
+} from '../utils/helpers'
+import {
+  filterArticles,
+  paginateArticles,
+  getActiveFilterCount,
+  resetFilters,
+  highlightText,
+} from '../utils/articleFilter'
 
 const PAGE_SIZE = 10
 
 export default function ArticleList() {
-  const { state, deleteArticle, updateArticle } = useApp()
+  const { state, deleteArticle, updateArticle, restoreArticle } = useApp()
   const navigate = useNavigate()
   const [currentPage, setCurrentPage] = useState(1)
   const [keyword, setKeyword] = useState('')
-  const [status, setStatus] = useState('')
-  const [category, setCategory] = useState('')
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const [showFilter, setShowFilter] = useState(false)
+  const [filters, setFilters] = useState({
+    category: '',
+    department: '',
+    startDate: '',
+    endDate: '',
+    hasAttachment: '',
+    status: '',
+    deleted: 'no',
+  })
+
   const [showVersionModal, setShowVersionModal] = useState(false)
   const [versionArticle, setVersionArticle] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
@@ -25,40 +62,52 @@ export default function ArticleList() {
   const [submitErrorArticle, setSubmitErrorArticle] = useState(null)
   const [submitErrors, setSubmitErrors] = useState([])
 
-  const filteredArticles = useMemo(() => {
-    let result = state.articles.filter((a) => !a.deleted)
-
-    if (keyword) {
-      const kw = keyword.toLowerCase()
-      result = result.filter((a) => a.title.toLowerCase().includes(kw))
-    }
-    if (status) {
-      result = result.filter((a) => a.status === status)
-    }
-    if (category) {
-      result = result.filter((a) => a.category === category)
-    }
-
-    result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    return result
-  }, [state.articles, keyword, status, category])
-
-  const filterCategories = useMemo(() => {
-    const activeCats = getActiveCategories(state.categories)
-    if (category) {
-      const selectedCat = state.categories.find((c) => c.code === category)
-      if (selectedCat && selectedCat.status !== 'active') {
-        return [...activeCats, selectedCat].sort((a, b) => (a.sort || 0) - (b.sort || 0))
-      }
-    }
-    return activeCats
-  }, [state.categories, category])
-
-  const totalPages = Math.ceil(filteredArticles.length / PAGE_SIZE)
-  const paginatedArticles = filteredArticles.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
+  const activeFilterCount = useMemo(
+    () => getActiveFilterCount({ ...filters, keyword: searchKeyword }, true),
+    [filters, searchKeyword]
   )
+
+  const filteredArticles = useMemo(() => {
+    const allFilters = {
+      ...filters,
+      keyword: searchKeyword,
+    }
+    return filterArticles(state.articles, allFilters, {
+      isAdmin: true,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
+  }, [state.articles, filters, searchKeyword])
+
+  const pagination = useMemo(() => {
+    return paginateArticles(filteredArticles, currentPage, PAGE_SIZE)
+  }, [filteredArticles, currentPage])
+
+  const handleSearch = () => {
+    setSearchKeyword(keyword)
+    setCurrentPage(1)
+  }
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch()
+    }
+  }
+
+  const handleFilterChange = (newFilters) => {
+    setFilters(newFilters)
+    setCurrentPage(1)
+  }
+
+  const handleReset = () => {
+    setKeyword('')
+    setSearchKeyword('')
+    setFilters({
+      ...resetFilters(true),
+      deleted: 'no',
+    })
+    setCurrentPage(1)
+  }
 
   const handleDelete = (id) => {
     if (window.confirm('确定要删除这条信息吗？')) {
@@ -66,8 +115,16 @@ export default function ArticleList() {
     }
   }
 
+  const handleRestore = (id) => {
+    if (window.confirm('确定要恢复这条信息吗？')) {
+      restoreArticle(id)
+    }
+  }
+
   const handleSubmitReview = (article) => {
-    const config = state.reviewFlowConfigs.find((c) => c.categoryCode === article.category)
+    const config = state.reviewFlowConfigs.find(
+      (c) => c.categoryCode === article.category
+    )
     const rules = getValidationRules(config)
 
     const result = validateArticle(
@@ -107,6 +164,11 @@ export default function ArticleList() {
     setShowDetailModal(true)
   }
 
+  const highlightedTitle = (title) => {
+    if (!searchKeyword) return title
+    return highlightText(title, searchKeyword)
+  }
+
   return (
     <AdminLayout>
       <div className="mb-6">
@@ -115,69 +177,94 @@ export default function ArticleList() {
       </div>
 
       <div className="bg-white rounded-lg shadow-sm">
-        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center justify-between">
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={keyword}
-                onChange={(e) => {
-                  setKeyword(e.target.value)
-                  setCurrentPage(1)
-                }}
-                placeholder="搜索标题..."
-                className="pl-9 pr-4 py-2 w-64 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
+        <div className="p-4 border-b border-gray-100 space-y-3">
+          <div className="flex flex-wrap gap-3 items-center justify-between">
+            <div className="flex flex-wrap gap-3 items-center flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="搜索标题或正文..."
+                  className="pl-9 pr-4 py-2 w-64 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              <button
+                onClick={handleSearch}
+                className="px-4 py-2 bg-primary-800 text-white rounded-lg hover:bg-primary-900 transition-colors text-sm font-medium"
+              >
+                搜索
+              </button>
+              <button
+                onClick={() => setShowFilter(!showFilter)}
+                className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm transition-colors ${
+                  showFilter || activeFilterCount > 0
+                    ? 'border-primary-500 text-primary-700 bg-primary-50'
+                    : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                高级筛选
+                {activeFilterCount > 0 && (
+                  <span className="inline-flex items-center justify-center w-5 h-5 bg-primary-600 text-white text-xs rounded-full">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
             </div>
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value)
-                setCurrentPage(1)
-              }}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">全部状态</option>
-              <option value="draft">草稿</option>
-              <option value="pending">待审核</option>
-              <option value="first_reviewed">待复审</option>
-              <option value="published">已发布</option>
-              <option value="rejected">已退回</option>
-            </select>
-            <select
-              value={category}
-              onChange={(e) => {
-                setCategory(e.target.value)
-                setCurrentPage(1)
-              }}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">全部类别</option>
-              {filterCategories.map((cat) => (
-                <option key={cat.code} value={cat.code}>
-                  {cat.name}
-                  {cat.status === 'inactive' && ' (已停用)'}
-                </option>
-              ))}
-            </select>
+            <div className="flex gap-2">
+              <button
+                onClick={() => navigate('/admin/batch-import')}
+                className="flex items-center gap-2 px-4 py-2 border border-primary-600 text-primary-700 rounded-lg hover:bg-primary-50 transition-colors text-sm font-medium"
+              >
+                <Upload className="w-4 h-4" />
+                批量导入
+              </button>
+              <button
+                onClick={() => navigate('/admin/articles/new')}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-800 text-white rounded-lg hover:bg-primary-900 transition-colors text-sm font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                新增信息
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => navigate('/admin/batch-import')}
-              className="flex items-center gap-2 px-4 py-2 border border-primary-600 text-primary-700 rounded-lg hover:bg-primary-50 transition-colors text-sm font-medium"
-            >
-              <Upload className="w-4 h-4" />
-              批量导入
-            </button>
-            <button
-              onClick={() => navigate('/admin/articles/new')}
-              className="flex items-center gap-2 px-4 py-2 bg-primary-800 text-white rounded-lg hover:bg-primary-900 transition-colors text-sm font-medium"
-            >
-              <Plus className="w-4 h-4" />
-              新增信息
-            </button>
+
+          {showFilter && (
+            <AdvancedFilterForm
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              categories={state.categories}
+              departments={state.departments}
+              isAdmin={true}
+              showStatusFilter={true}
+              showDeletedFilter={true}
+              onReset={handleReset}
+              onClose={() => setShowFilter(false)}
+            />
+          )}
+        </div>
+
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            共 <span className="font-medium text-primary-700">{pagination.total}</span> 条
+            {searchKeyword && (
+              <span className="text-gray-400 ml-2">
+                关键词：<span className="text-gray-700">{searchKeyword}</span>
+              </span>
+            )}
           </div>
+          {activeFilterCount > 0 && (
+            <button
+              onClick={handleReset}
+              className="text-sm text-primary-600 hover:text-primary-800 flex items-center gap-1"
+            >
+              <X className="w-3.5 h-3.5" />
+              清除全部筛选
+            </button>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -202,18 +289,32 @@ export default function ArticleList() {
               </tr>
             </thead>
             <tbody>
-              {paginatedArticles.length > 0 ? (
-                paginatedArticles.map((article) => (
+              {pagination.items.length > 0 ? (
+                pagination.items.map((article) => (
                   <tr
                     key={article.id}
-                    className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                    className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${
+                      article.deleted ? 'bg-red-50/30' : ''
+                    }`}
                   >
                     <td className="px-4 py-3">
-                      <div className="text-sm text-gray-900 font-medium line-clamp-1">
-                        {article.title}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-0.5">
-                        {article.department}
+                      <div
+                        className="text-sm text-gray-900 font-medium line-clamp-1"
+                        dangerouslySetInnerHTML={{
+                          __html: highlightedTitle(article.title),
+                        }}
+                      />
+                      <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-2">
+                        <span>{article.department}</span>
+                        {article.attachmentName && (
+                          <span className="flex items-center gap-0.5 text-primary-500">
+                            <Paperclip className="w-3 h-3" />
+                            附件
+                          </span>
+                        )}
+                        {article.deleted && (
+                          <span className="text-red-500">（已删除）</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -222,10 +323,15 @@ export default function ArticleList() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <StatusTag status={article.status} reviewStage={article.reviewStage} />
+                      <StatusTag
+                        status={article.status}
+                        reviewStage={article.reviewStage}
+                      />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm text-gray-500">{article.createdAt}</span>
+                      <span className="text-sm text-gray-500">
+                        {article.createdAt}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
@@ -243,18 +349,20 @@ export default function ArticleList() {
                         >
                           <Clock className="w-4 h-4" />
                         </button>
-                        {(article.status === 'draft' || article.status === 'rejected') && (
-                          <button
-                            onClick={() =>
-                              navigate(`/admin/articles/${article.id}/edit`)
-                            }
-                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
-                            title="编辑"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        )}
-                        {article.status === 'draft' && (
+                        {(article.status === 'draft' ||
+                          article.status === 'rejected') &&
+                          !article.deleted && (
+                            <button
+                              onClick={() =>
+                                navigate(`/admin/articles/${article.id}/edit`)
+                              }
+                              className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
+                              title="编辑"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        {article.status === 'draft' && !article.deleted && (
                           <button
                             onClick={() => handleSubmitReview(article)}
                             className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
@@ -263,21 +371,55 @@ export default function ArticleList() {
                             <Send className="w-4 h-4" />
                           </button>
                         )}
-                        <button
-                          onClick={() => handleDelete(article.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="删除"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {!article.deleted ? (
+                          <button
+                            onClick={() => handleDelete(article.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="删除"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleRestore(article.id)}
+                            className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                            title="恢复"
+                          >
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                              />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="px-4 py-12 text-center text-gray-400">
-                    暂无数据
+                  <td
+                    colSpan="5"
+                    className="px-4 py-12 text-center text-gray-400"
+                  >
+                    <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p>暂无数据</p>
+                    {activeFilterCount > 0 && (
+                      <button
+                        onClick={handleReset}
+                        className="mt-2 text-sm text-primary-600 hover:text-primary-800"
+                      >
+                        重置筛选条件
+                      </button>
+                    )}
                   </td>
                 </tr>
               )}
@@ -285,15 +427,15 @@ export default function ArticleList() {
           </table>
         </div>
 
-        {totalPages > 1 && (
+        {pagination.totalPages > 1 && (
           <div className="p-4 border-t border-gray-100">
             <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
               onPageChange={setCurrentPage}
             />
           </div>
-      )}
+        )}
       </div>
 
       {showDetailModal && detailArticle && (
@@ -311,12 +453,25 @@ export default function ArticleList() {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-3">
-                  {detailArticle.title}
-                </h2>
+                <h2
+                  className="text-xl font-bold text-gray-900 mb-3"
+                  dangerouslySetInnerHTML={{
+                    __html: highlightedTitle(detailArticle.title),
+                  }}
+                />
                 <div className="flex items-center gap-3 flex-wrap">
-                  <StatusTag status={detailArticle.status} reviewStage={detailArticle.reviewStage} />
-                  <span className="text-xs text-gray-500">{detailArticle.categoryName}</span>
+                  <StatusTag
+                    status={detailArticle.status}
+                    reviewStage={detailArticle.reviewStage}
+                  />
+                  <span className="text-xs text-gray-500">
+                    {detailArticle.categoryName}
+                  </span>
+                  {detailArticle.deleted && (
+                    <span className="text-xs text-red-500 font-medium">
+                      已删除
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -325,28 +480,36 @@ export default function ArticleList() {
                   <Building className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                   <div>
                     <div className="text-xs text-gray-500 mb-0.5">科室</div>
-                    <div className="text-sm text-gray-700">{detailArticle.department}</div>
+                    <div className="text-sm text-gray-700">
+                      {detailArticle.department}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <Calendar className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                   <div>
                     <div className="text-xs text-gray-500 mb-0.5">发布日期</div>
-                    <div className="text-sm text-gray-700">{detailArticle.publishDate || '（未设置）'}</div>
+                    <div className="text-sm text-gray-700">
+                      {detailArticle.publishDate || '（未设置）'}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <User className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                   <div>
                     <div className="text-xs text-gray-500 mb-0.5">创建人</div>
-                    <div className="text-sm text-gray-700">{detailArticle.authorName || '（未知）'}</div>
+                    <div className="text-sm text-gray-700">
+                      {detailArticle.authorName || '（未知）'}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                   <div>
                     <div className="text-xs text-gray-500 mb-0.5">更新时间</div>
-                    <div className="text-sm text-gray-700">{detailArticle.updatedAt || detailArticle.createdAt}</div>
+                    <div className="text-sm text-gray-700">
+                      {detailArticle.updatedAt || detailArticle.createdAt}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -356,15 +519,21 @@ export default function ArticleList() {
                   <Paperclip className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                   <div>
                     <div className="text-xs text-gray-500 mb-0.5">附件</div>
-                    <div className="text-sm text-primary-600">{detailArticle.attachmentName}</div>
+                    <div className="text-sm text-primary-600">
+                      {detailArticle.attachmentName}
+                    </div>
                   </div>
                 </div>
               )}
 
               {detailArticle.rejectReason && (
                 <div className="p-3 bg-red-50 border border-red-100 rounded-lg">
-                  <div className="text-xs text-red-600 font-medium mb-1">退回原因</div>
-                  <div className="text-sm text-red-700">{detailArticle.rejectReason}</div>
+                  <div className="text-xs text-red-600 font-medium mb-1">
+                    退回原因
+                  </div>
+                  <div className="text-sm text-red-700">
+                    {detailArticle.rejectReason}
+                  </div>
                 </div>
               )}
 
@@ -390,30 +559,35 @@ export default function ArticleList() {
                 版本历史
               </button>
               <div className="flex gap-2">
-                {(detailArticle.status === 'draft' || detailArticle.status === 'rejected') && (
-                  <button
-                    onClick={() => {
-                      setShowDetailModal(false)
-                      navigate(`/admin/articles/${detailArticle.id}/edit`)
-                    }}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm flex items-center gap-2"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                    编辑
-                  </button>
-                )}
-                {detailArticle.status === 'draft' && (
-                  <button
-                    onClick={() => {
-                      setShowDetailModal(false)
-                      handleSubmitReview(detailArticle)
-                    }}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
-                  >
-                    <Send className="w-4 h-4" />
-                    提交审核
-                  </button>
-                )}
+                {(detailArticle.status === 'draft' ||
+                  detailArticle.status === 'rejected') &&
+                  !detailArticle.deleted && (
+                    <button
+                      onClick={() => {
+                        setShowDetailModal(false)
+                        navigate(
+                          `/admin/articles/${detailArticle.id}/edit`
+                        )
+                      }}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm flex items-center gap-2"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                      编辑
+                    </button>
+                  )}
+                {detailArticle.status === 'draft' &&
+                  !detailArticle.deleted && (
+                    <button
+                      onClick={() => {
+                        setShowDetailModal(false)
+                        handleSubmitReview(detailArticle)
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
+                    >
+                      <Send className="w-4 h-4" />
+                      提交审核
+                    </button>
+                  )}
               </div>
             </div>
           </div>
@@ -454,7 +628,10 @@ export default function ArticleList() {
                 <p className="text-sm font-medium text-red-800 mb-2">错误列表：</p>
                 <ul className="space-y-1">
                   {submitErrors.map((err, idx) => (
-                    <li key={idx} className="text-sm text-red-700 flex items-start gap-1.5">
+                    <li
+                      key={idx}
+                      className="text-sm text-red-700 flex items-start gap-1.5"
+                    >
                       <XCircle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
                       {err}
                     </li>

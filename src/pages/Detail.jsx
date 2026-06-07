@@ -1,15 +1,28 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useMemo } from 'react'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { ArrowLeft, Calendar, Building, FolderOpen, Paperclip, Download, Clock } from 'lucide-react'
 import FrontendLayout from '../components/FrontendLayout'
 import VersionHistoryModal from '../components/VersionHistoryModal'
 import { useApp } from '../context/useApp'
+import { highlightHtmlContent, highlightText } from '../utils/articleFilter'
 
 export default function Detail() {
   const { id } = useParams()
   const { getArticleById } = useApp()
+  const [searchParams] = useSearchParams()
+  const highlightKeyword = searchParams.get('highlight') || ''
   const [showVersionModal, setShowVersionModal] = useState(false)
   const article = getArticleById(id)
+
+  const highlightedTitle = useMemo(() => {
+    if (!article || !highlightKeyword) return article?.title || ''
+    return highlightText(article.title, highlightKeyword)
+  }, [article, highlightKeyword])
+
+  const highlightedContent = useMemo(() => {
+    if (!article || !highlightKeyword) return article?.content || ''
+    return highlightHtmlContent(article.content, highlightKeyword)
+  }, [article, highlightKeyword])
 
   if (!article || article.status !== 'published' || article.deleted) {
     return (
@@ -49,9 +62,10 @@ export default function Detail() {
 
       <article className="bg-white rounded-lg shadow-sm">
         <div className="p-8 border-b border-gray-100">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4 leading-relaxed">
-            {article.title}
-          </h1>
+          <h1
+            className="text-2xl font-bold text-gray-900 mb-4 leading-relaxed"
+            dangerouslySetInnerHTML={{ __html: highlightedTitle }}
+          />
           <div className="flex items-center gap-6 text-sm text-gray-500">
             <span className="flex items-center gap-1.5">
               <FolderOpen className="w-4 h-4" />
@@ -71,7 +85,7 @@ export default function Detail() {
         <div className="p-8">
           <div
             className="prose max-w-none text-gray-700 leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: article.content }}
+            dangerouslySetInnerHTML={{ __html: highlightedContent }}
             style={{
               lineHeight: '1.8',
               fontSize: '16px',

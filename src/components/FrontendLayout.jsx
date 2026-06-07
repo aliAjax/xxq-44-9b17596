@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Building2, User, BookOpen } from 'lucide-react'
+import { Building2, User, BookOpen, Search } from 'lucide-react'
 
 export default function FrontendLayout({ children }) {
   const location = useLocation()
@@ -38,6 +38,17 @@ export default function FrontendLayout({ children }) {
                 >
                   <BookOpen className="w-4 h-4" />
                   公开目录
+                </Link>
+                <Link
+                  to="/search"
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm transition-colors ${
+                    location.pathname === '/search'
+                      ? 'bg-white/20 text-white font-medium'
+                      : 'hover:bg-white/10 text-primary-100'
+                  }`}
+                >
+                  <Search className="w-4 h-4" />
+                  高级检索
                 </Link>
               </nav>
               <Link
