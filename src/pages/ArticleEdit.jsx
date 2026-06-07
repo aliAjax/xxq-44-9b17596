@@ -79,6 +79,9 @@ export default function ArticleEdit() {
     setErrors((prev) => {
       const next = { ...prev }
       delete next[name]
+      if (name === 'attachmentName' || name === 'attachmentUrl') {
+        delete next.attachment
+      }
       if (name === 'category') {
         delete next.attachment
         delete next.publishDate
