@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import { useApp } from '../context/useApp'
-import { getValidationRules, getContentTextLength } from '../utils/helpers'
+import { getValidationRules, getContentTextLength, getActiveCategories, getActiveDepartments } from '../utils/helpers'
 
 export default function ArticleEdit() {
   const { id } = useParams()
@@ -52,6 +52,28 @@ export default function ArticleEdit() {
   const contentLength = useMemo(() => {
     return getContentTextLength(formData.content)
   }, [formData.content])
+
+  const availableCategories = useMemo(() => {
+    const activeCats = getActiveCategories(state.categories)
+    if (isEdit && formData.category) {
+      const currentCat = state.categories.find((c) => c.code === formData.category)
+      if (currentCat && currentCat.status !== 'active') {
+        return [...activeCats, currentCat].sort((a, b) => (a.sort || 0) - (b.sort || 0))
+      }
+    }
+    return activeCats
+  }, [state.categories, formData.category, isEdit])
+
+  const availableDepartments = useMemo(() => {
+    const activeDepts = getActiveDepartments(state.departments)
+    if (isEdit && formData.department) {
+      const currentDept = state.departments.find((d) => d.name === formData.department)
+      if (currentDept && currentDept.status !== 'active') {
+        return [...activeDepts, currentDept].sort((a, b) => (a.sort || 0) - (b.sort || 0))
+      }
+    }
+    return activeDepts
+  }, [state.departments, formData.department, isEdit])
 
   useEffect(() => {
     if (isEdit) {
@@ -333,9 +355,10 @@ export default function ArticleEdit() {
                 }`}
               >
                 <option value="">请选择类别</option>
-                {state.categories.map((cat) => (
-                  <option key={cat.code} value={cat.code}>
+                {availableCategories.map((cat) => (
+                  <option key={cat.code} value={cat.code} disabled={cat.status === 'inactive'}>
                     {cat.name}
+                    {cat.status === 'inactive' && ' (已停用)'}
                   </option>
                 ))}
               </select>
@@ -360,9 +383,10 @@ export default function ArticleEdit() {
                 }`}
               >
                 <option value="">请选择科室</option>
-                {state.departments.map((dept) => (
-                  <option key={dept.id} value={dept.name}>
+                {availableDepartments.map((dept) => (
+                  <option key={dept.id} value={dept.name} disabled={dept.status === 'inactive'}>
                     {dept.name}
+                    {dept.status === 'inactive' && ' (已停用)'}
                   </option>
                 ))}
               </select>

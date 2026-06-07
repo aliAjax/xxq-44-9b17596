@@ -3,14 +3,16 @@ import { Link } from 'react-router-dom'
 import { FolderOpen, ChevronRight, BookOpen, FileText } from 'lucide-react'
 import FrontendLayout from '../components/FrontendLayout'
 import { useApp } from '../context/useApp'
-import { countByCategory, getPublishedArticles } from '../utils/helpers'
+import { countByCategory, getPublishedArticles, getActiveCategories } from '../utils/helpers'
 
 export default function CatalogList() {
   const { state } = useApp()
 
+  const activeCategories = useMemo(() => getActiveCategories(state.categories), [state.categories])
+
   const categoryStats = useMemo(() => {
-    return countByCategory(state.articles, state.categories)
-  }, [state.articles, state.categories])
+    return countByCategory(state.articles, activeCategories)
+  }, [state.articles, activeCategories])
 
   const totalCount = useMemo(() => {
     return getPublishedArticles(state.articles).length

@@ -6,7 +6,7 @@ import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
 import VersionHistoryModal from '../components/VersionHistoryModal'
 import { useApp } from '../context/useApp'
-import { getValidationRules, validateArticle } from '../utils/helpers'
+import { getValidationRules, validateArticle, getActiveCategories } from '../utils/helpers'
 
 const PAGE_SIZE = 10
 
@@ -42,6 +42,17 @@ export default function ArticleList() {
     result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     return result
   }, [state.articles, keyword, status, category])
+
+  const filterCategories = useMemo(() => {
+    const activeCats = getActiveCategories(state.categories)
+    if (category) {
+      const selectedCat = state.categories.find((c) => c.code === category)
+      if (selectedCat && selectedCat.status !== 'active') {
+        return [...activeCats, selectedCat].sort((a, b) => (a.sort || 0) - (b.sort || 0))
+      }
+    }
+    return activeCats
+  }, [state.categories, category])
 
   const totalPages = Math.ceil(filteredArticles.length / PAGE_SIZE)
   const paginatedArticles = filteredArticles.slice(
@@ -143,9 +154,10 @@ export default function ArticleList() {
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="">全部类别</option>
-              {state.categories.map((cat) => (
+              {filterCategories.map((cat) => (
                 <option key={cat.code} value={cat.code}>
                   {cat.name}
+                  {cat.status === 'inactive' && ' (已停用)'}
                 </option>
               ))}
             </select>

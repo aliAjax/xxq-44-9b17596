@@ -5,6 +5,7 @@ import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
 import { useApp } from '../context/useApp'
+import { getActiveDepartments } from '../utils/helpers'
 
 const PAGE_SIZE = 10
 
@@ -76,6 +77,7 @@ export default function DepartmentStats() {
   const totalPublished = departmentStats.reduce((sum, d) => sum + d.publishedCount, 0)
   const totalPending = departmentStats.reduce((sum, d) => sum + d.pendingCount, 0)
   const totalRejected = departmentStats.reduce((sum, d) => sum + d.rejectedCount, 0)
+  const activeDepartmentCount = getActiveDepartments(state.departments).length
 
   return (
     <AdminLayout>
@@ -91,8 +93,8 @@ export default function DepartmentStats() {
               <Building2 className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-800">{state.departments.length}</div>
-              <div className="text-sm text-gray-500">科室总数</div>
+              <div className="text-2xl font-bold text-gray-800">{activeDepartmentCount}</div>
+              <div className="text-sm text-gray-500">活跃科室（共{state.departments.length}）</div>
             </div>
           </div>
         </div>
@@ -195,9 +197,18 @@ export default function DepartmentStats() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm font-medium text-gray-900">
+                          <Building2 className={`w-4 h-4 ${dept.status === 'inactive' ? 'text-gray-300' : 'text-gray-400'}`} />
+                          <span
+                            className={`text-sm font-medium ${
+                              dept.status === 'inactive'
+                                ? 'text-gray-400 line-through'
+                                : 'text-gray-900'
+                            }`}
+                          >
                             {dept.name}
+                            {dept.status === 'inactive' && (
+                              <span className="ml-2 text-xs text-gray-400 not-italic">（已停用）</span>
+                            )}
                           </span>
                         </div>
                       </td>

@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2, BarChart3, Trash2, PieChart, Calendar, ClipboardList, Upload, GitBranch, FileArchive } from 'lucide-react'
+import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2, BarChart3, Trash2, PieChart, Calendar, ClipboardList, Upload, GitBranch, FileArchive, Settings, FolderOpen } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import { getRoleText } from '../utils/helpers'
 
@@ -68,6 +68,18 @@ export default function AdminLayout({ children }) {
       label: '审核流配置',
       icon: GitBranch,
       roles: ['senior_reviewer'],
+    },
+    {
+      path: '/admin/categories',
+      label: '公开类别管理',
+      icon: FolderOpen,
+      roles: ['senior_reviewer'],
+    },
+    {
+      path: '/admin/departments-manage',
+      label: '科室管理',
+      icon: Building2,
+      roles: ['editor'],
     },
     {
       path: '/admin/operation-logs',

@@ -4,6 +4,7 @@ import FrontendLayout from '../components/FrontendLayout'
 import ArticleCard from '../components/ArticleCard'
 import Pagination from '../components/Pagination'
 import { useApp } from '../context/useApp'
+import { getActiveCategories } from '../utils/helpers'
 
 const PAGE_SIZE = 10
 
@@ -41,6 +42,17 @@ export default function Home() {
     result.sort((a, b) => new Date(b.publishDate) - new Date(a.publishDate))
     return result
   }, [state.articles, category, searchKeyword, startDate, endDate])
+
+  const displayCategories = useMemo(() => {
+    const activeCats = getActiveCategories(state.categories)
+    if (category) {
+      const selectedCat = state.categories.find((c) => c.code === category)
+      if (selectedCat && selectedCat.status !== 'active') {
+        return [...activeCats, selectedCat].sort((a, b) => (a.sort || 0) - (b.sort || 0))
+      }
+    }
+    return activeCats
+  }, [state.categories, category])
 
   const handleSearch = () => {
     setSearchKeyword(keyword)
@@ -114,9 +126,10 @@ export default function Home() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="">全部类别</option>
-                  {state.categories.map((cat) => (
-                    <option key={cat.code} value={cat.code}>
+                  {displayCategories.map((cat) => (
+                    <option key={cat.code} value={cat.code} disabled={cat.status === 'inactive'}>
                       {cat.name}
+                      {cat.status === 'inactive' && ' (已停用)'}
                     </option>
                   ))}
                 </select>
@@ -211,10 +224,11 @@ export default function Home() {
                   全部类别
                 </button>
               </li>
-              {state.categories.map((cat) => (
+              {displayCategories.map((cat) => (
                 <li key={cat.code}>
                   <button
                     onClick={() => {
+                      if (cat.status === 'inactive') return
                       setCategory(cat.code)
                       setShowFilter(false)
                       setCurrentPage(1)
@@ -222,10 +236,15 @@ export default function Home() {
                     className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                       category === cat.code
                         ? 'bg-primary-50 text-primary-800 font-medium'
+                        : cat.status === 'inactive'
+                        ? 'text-gray-400 cursor-not-allowed line-through'
                         : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
                     {cat.name}
+                    {cat.status === 'inactive' && (
+                      <span className="ml-2 text-xs">（已停用）</span>
+                    )}
                   </button>
                 </li>
               ))}

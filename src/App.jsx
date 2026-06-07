@@ -15,6 +15,8 @@ import DepartmentStats from './pages/DepartmentStats'
 import PublishCalendar from './pages/PublishCalendar'
 import OperationLog from './pages/OperationLog'
 import ImportDrafts from './pages/ImportDrafts'
+import CategoryManage from './pages/CategoryManage'
+import DepartmentManage from './pages/DepartmentManage'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -119,7 +121,22 @@ function App() {
           </ProtectedRoute>
         }
       />
-
+      <Route
+        path="/admin/categories"
+        element={
+          <ProtectedRoute allowedRoles={['senior_reviewer']}>
+            <CategoryManage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/departments-manage"
+        element={
+          <ProtectedRoute allowedRoles={['editor']}>
+            <DepartmentManage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/admin/operation-logs"
         element={

@@ -19,7 +19,7 @@ import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import RejectTemplateManager from '../components/RejectTemplateManager'
 import { useApp } from '../context/useApp'
-import { getReviewStageText, getReviewStageColor, isArticleClaimed, isArticleClaimedByUser } from '../utils/helpers'
+import { getReviewStageText, getReviewStageColor, isArticleClaimed, isArticleClaimedByUser, getActiveCategories } from '../utils/helpers'
 
 export default function ReviewDashboard() {
   const { state, reviewArticle, isTwoLevelReview, claimArticle, releaseArticle } = useApp()
@@ -282,12 +282,19 @@ export default function ReviewDashboard() {
               {categoryStats.map((cat) => (
                 <div key={cat.id}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm text-gray-700">{cat.name}</span>
+                    <span className={`text-sm ${cat.status === 'inactive' ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                      {cat.name}
+                      {cat.status === 'inactive' && (
+                        <span className="ml-1 text-xs not-italic">（已停用）</span>
+                      )}
+                    </span>
                     <span className="text-sm font-medium text-gray-600">{cat.count} 条</span>
                   </div>
                   <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-primary-500 rounded-full transition-all duration-500"
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        cat.status === 'inactive' ? 'bg-gray-400' : 'bg-primary-500'
+                      }`}
                       style={{ width: `${(cat.count / maxCategoryCount) * 100}%` }}
                     />
                   </div>

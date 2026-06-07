@@ -1,20 +1,20 @@
 export const categories = [
-  { id: '1', name: '政策法规', code: 'policy' },
-  { id: '2', name: '通知公告', code: 'notice' },
-  { id: '3', name: '规划计划', code: 'plan' },
-  { id: '4', name: '财政信息', code: 'finance' },
-  { id: '5', name: '人事信息', code: 'personnel' },
-  { id: '6', name: '应急管理', code: 'emergency' },
-  { id: '7', name: '重点领域', code: 'keyarea' },
+  { id: '1', name: '政策法规', code: 'policy', status: 'active', sort: 1 },
+  { id: '2', name: '通知公告', code: 'notice', status: 'active', sort: 2 },
+  { id: '3', name: '规划计划', code: 'plan', status: 'active', sort: 3 },
+  { id: '4', name: '财政信息', code: 'finance', status: 'active', sort: 4 },
+  { id: '5', name: '人事信息', code: 'personnel', status: 'active', sort: 5 },
+  { id: '6', name: '应急管理', code: 'emergency', status: 'active', sort: 6 },
+  { id: '7', name: '重点领域', code: 'keyarea', status: 'active', sort: 7 },
 ]
 
 export const departments = [
-  { id: '1', name: '办公室' },
-  { id: '2', name: '政策法规科' },
-  { id: '3', name: '综合业务科' },
-  { id: '4', name: '财务科' },
-  { id: '5', name: '人事科' },
-  { id: '6', name: '信息中心' },
+  { id: '1', name: '办公室', status: 'active', sort: 1 },
+  { id: '2', name: '政策法规科', status: 'active', sort: 2 },
+  { id: '3', name: '综合业务科', status: 'active', sort: 3 },
+  { id: '4', name: '财务科', status: 'active', sort: 4 },
+  { id: '5', name: '人事科', status: 'active', sort: 5 },
+  { id: '6', name: '信息中心', status: 'active', sort: 6 },
 ]
 
 export const rejectTemplates = [

@@ -52,6 +52,12 @@ const actionTypes = {
   UPDATE_IMPORT_DRAFT: 'UPDATE_IMPORT_DRAFT',
   DELETE_IMPORT_DRAFT: 'DELETE_IMPORT_DRAFT',
   INIT_IMPORT_DRAFTS: 'INIT_IMPORT_DRAFTS',
+  ADD_CATEGORY: 'ADD_CATEGORY',
+  UPDATE_CATEGORY: 'UPDATE_CATEGORY',
+  INIT_CATEGORIES: 'INIT_CATEGORIES',
+  ADD_DEPARTMENT: 'ADD_DEPARTMENT',
+  UPDATE_DEPARTMENT: 'UPDATE_DEPARTMENT',
+  INIT_DEPARTMENTS: 'INIT_DEPARTMENTS',
 }
 
 function reducer(state, action) {
@@ -238,6 +244,40 @@ function reducer(state, action) {
         ...state,
         importDrafts: state.importDrafts.filter((d) => d.id !== action.payload),
       }
+    case actionTypes.INIT_CATEGORIES:
+      return {
+        ...state,
+        categories: action.payload,
+      }
+    case actionTypes.ADD_CATEGORY:
+      return {
+        ...state,
+        categories: [...state.categories, action.payload].sort((a, b) => (a.sort || 0) - (b.sort || 0)),
+      }
+    case actionTypes.UPDATE_CATEGORY:
+      return {
+        ...state,
+        categories: state.categories
+          .map((c) => (c.id === action.payload.id ? action.payload : c))
+          .sort((a, b) => (a.sort || 0) - (b.sort || 0)),
+      }
+    case actionTypes.INIT_DEPARTMENTS:
+      return {
+        ...state,
+        departments: action.payload,
+      }
+    case actionTypes.ADD_DEPARTMENT:
+      return {
+        ...state,
+        departments: [...state.departments, action.payload].sort((a, b) => (a.sort || 0) - (b.sort || 0)),
+      }
+    case actionTypes.UPDATE_DEPARTMENT:
+      return {
+        ...state,
+        departments: state.departments
+          .map((d) => (d.id === action.payload.id ? action.payload : d))
+          .sort((a, b) => (a.sort || 0) - (b.sort || 0)),
+      }
     default:
       return state
   }
@@ -269,6 +309,64 @@ export function AppProvider({ children }) {
     })
 
     return migratedUsers
+  }
+
+  const migrateCategories = (existingCategories) => {
+    const migrated = [...(existingCategories || [])]
+    const usedCodes = new Set(migrated.map((c) => c.code))
+    const usedIds = new Set(migrated.map((c) => c.id))
+    let maxId = migrated.length > 0
+      ? Math.max(...migrated.map((c) => parseInt(c.id) || 0))
+      : 0
+
+    categories.forEach((defaultCat) => {
+      const exists = migrated.some((c) => c.code === defaultCat.code)
+      if (!exists) {
+        let nextId = defaultCat.id
+        if (usedIds.has(nextId)) {
+          maxId += 1
+          nextId = String(maxId)
+        }
+        usedIds.add(nextId)
+        usedCodes.add(defaultCat.code)
+        migrated.push({ ...defaultCat, id: nextId })
+      }
+    })
+
+    return migrated.map((cat) => ({
+      status: 'active',
+      sort: parseInt(cat.id) || 0,
+      ...cat,
+    }))
+  }
+
+  const migrateDepartments = (existingDepartments) => {
+    const migrated = [...(existingDepartments || [])]
+    const usedNames = new Set(migrated.map((d) => d.name))
+    const usedIds = new Set(migrated.map((d) => d.id))
+    let maxId = migrated.length > 0
+      ? Math.max(...migrated.map((d) => parseInt(d.id) || 0))
+      : 0
+
+    departments.forEach((defaultDept) => {
+      const exists = migrated.some((d) => d.name === defaultDept.name)
+      if (!exists) {
+        let nextId = defaultDept.id
+        if (usedIds.has(nextId)) {
+          maxId += 1
+          nextId = String(maxId)
+        }
+        usedIds.add(nextId)
+        usedNames.add(defaultDept.name)
+        migrated.push({ ...defaultDept, id: nextId })
+      }
+    })
+
+    return migrated.map((dept) => ({
+      status: 'active',
+      sort: parseInt(dept.id) || 0,
+      ...dept,
+    }))
   }
 
   const migrateReviewFlowConfigs = (configs, categoryList) => {
@@ -409,6 +507,8 @@ export function AppProvider({ children }) {
       storage.set(STORAGE_KEYS.USERS, users)
       storage.set(STORAGE_KEYS.CATEGORIES, categories)
       storage.set(STORAGE_KEYS.DEPARTMENTS, departments)
+      storage.set(STORAGE_KEYS.CATEGORIES_INITIALIZED, true)
+      storage.set(STORAGE_KEYS.DEPARTMENTS_INITIALIZED, true)
       storage.set(STORAGE_KEYS.REJECT_TEMPLATES, rejectTemplates)
       storage.set(STORAGE_KEYS.REJECT_TEMPLATES_INITIALIZED, true)
       storage.set(STORAGE_KEYS.REVIEW_FLOW_CONFIGS, reviewFlowConfigs)
@@ -435,6 +535,22 @@ export function AppProvider({ children }) {
         storage.set(STORAGE_KEYS.USERS, migratedUsers)
       }
 
+      const categoriesInitialized = storage.get(STORAGE_KEYS.CATEGORIES_INITIALIZED)
+      const existingCategories = storage.get(STORAGE_KEYS.CATEGORIES) || []
+      const migratedCategories = migrateCategories(existingCategories)
+      if (!categoriesInitialized || JSON.stringify(migratedCategories) !== JSON.stringify(existingCategories)) {
+        storage.set(STORAGE_KEYS.CATEGORIES, migratedCategories)
+        storage.set(STORAGE_KEYS.CATEGORIES_INITIALIZED, true)
+      }
+
+      const departmentsInitialized = storage.get(STORAGE_KEYS.DEPARTMENTS_INITIALIZED)
+      const existingDepartments = storage.get(STORAGE_KEYS.DEPARTMENTS) || []
+      const migratedDepartments = migrateDepartments(existingDepartments)
+      if (!departmentsInitialized || JSON.stringify(migratedDepartments) !== JSON.stringify(existingDepartments)) {
+        storage.set(STORAGE_KEYS.DEPARTMENTS, migratedDepartments)
+        storage.set(STORAGE_KEYS.DEPARTMENTS_INITIALIZED, true)
+      }
+
       const reviewFlowInitialized = storage.get(STORAGE_KEYS.REVIEW_FLOW_INITIALIZED)
       const loadedCategories = storage.get(STORAGE_KEYS.CATEGORIES) || categories
       const existingFlowConfigs = storage.get(STORAGE_KEYS.REVIEW_FLOW_CONFIGS) || []
@@ -457,7 +573,8 @@ export function AppProvider({ children }) {
       }
     }
 
-    const loadedCategories = storage.get(STORAGE_KEYS.CATEGORIES) || categories
+    const loadedCategories = migrateCategories(storage.get(STORAGE_KEYS.CATEGORIES) || [])
+    const loadedDepartments = migrateDepartments(storage.get(STORAGE_KEYS.DEPARTMENTS) || [])
     const loadedFlowConfigs = storage.get(STORAGE_KEYS.REVIEW_FLOW_CONFIGS) || []
     const finalFlowConfigs = migrateReviewFlowConfigs(loadedFlowConfigs, loadedCategories)
     const loadedUsers = storage.get(STORAGE_KEYS.USERS) || []
@@ -479,7 +596,7 @@ export function AppProvider({ children }) {
         articles: finalArticles,
         users: finalUsers,
         categories: loadedCategories,
-        departments: storage.get(STORAGE_KEYS.DEPARTMENTS) || [],
+        departments: loadedDepartments,
         rejectTemplates: storage.get(STORAGE_KEYS.REJECT_TEMPLATES) || [],
         operationLogs: storage.get(STORAGE_KEYS.OPERATION_LOGS) || [],
         reviewFlowConfigs: finalFlowConfigs,
@@ -1265,6 +1382,106 @@ export function AppProvider({ children }) {
     return state.importDrafts.find((d) => d.id === draftId) || null
   }
 
+  const addCategory = (categoryData) => {
+    const maxSort = state.categories.length > 0
+      ? Math.max(...state.categories.map((c) => c.sort || 0))
+      : 0
+    const newCategory = {
+      ...categoryData,
+      id: generateId(),
+      status: 'active',
+      sort: maxSort + 1,
+    }
+    const allCategories = [...state.categories, newCategory].sort((a, b) => (a.sort || 0) - (b.sort || 0))
+    storage.set(STORAGE_KEYS.CATEGORIES, allCategories)
+    dispatch({ type: actionTypes.ADD_CATEGORY, payload: newCategory })
+
+    const existingConfigs = state.reviewFlowConfigs
+    const hasConfig = existingConfigs.some((c) => c.categoryCode === newCategory.code)
+    if (!hasConfig) {
+      const maxId = existingConfigs.length > 0
+        ? Math.max(...existingConfigs.map((c) => parseInt(c.id) || 0))
+        : 0
+      const newConfig = {
+        id: String(maxId + 1),
+        categoryCode: newCategory.code,
+        categoryName: newCategory.name,
+        requireTwoLevel: false,
+        validationRules: { ...DEFAULT_VALIDATION_RULES },
+      }
+      const allConfigs = [...existingConfigs, newConfig]
+      storage.set(STORAGE_KEYS.REVIEW_FLOW_CONFIGS, allConfigs)
+      dispatch({ type: actionTypes.UPDATE_REVIEW_FLOW_CONFIG, payload: newConfig })
+    }
+
+    addOperationLog(OPERATION_ACTIONS.ADD_CATEGORY, newCategory.name)
+    return newCategory
+  }
+
+  const updateCategory = (id, updates) => {
+    const category = state.categories.find((c) => c.id === id)
+    if (!category) return null
+    const updated = { ...category, ...updates }
+    const allCategories = state.categories
+      .map((c) => (c.id === id ? updated : c))
+      .sort((a, b) => (a.sort || 0) - (b.sort || 0))
+    storage.set(STORAGE_KEYS.CATEGORIES, allCategories)
+    dispatch({ type: actionTypes.UPDATE_CATEGORY, payload: updated })
+
+    const existingConfigs = state.reviewFlowConfigs
+    const config = existingConfigs.find((c) => c.categoryCode === category.code)
+    if (config && updates.name) {
+      const updatedConfig = { ...config, categoryName: updates.name }
+      const allConfigs = existingConfigs.map((c) => c.id === config.id ? updatedConfig : c)
+      storage.set(STORAGE_KEYS.REVIEW_FLOW_CONFIGS, allConfigs)
+      dispatch({ type: actionTypes.UPDATE_REVIEW_FLOW_CONFIG, payload: updatedConfig })
+    }
+
+    const action = updates.status === 'inactive'
+      ? OPERATION_ACTIONS.DISABLE_CATEGORY
+      : updates.status === 'active'
+      ? OPERATION_ACTIONS.ENABLE_CATEGORY
+      : OPERATION_ACTIONS.UPDATE_CATEGORY
+    addOperationLog(action, updated.name)
+    return updated
+  }
+
+  const addDepartment = (deptData) => {
+    const maxSort = state.departments.length > 0
+      ? Math.max(...state.departments.map((d) => d.sort || 0))
+      : 0
+    const newDept = {
+      ...deptData,
+      id: generateId(),
+      status: 'active',
+      sort: maxSort + 1,
+    }
+    const allDepts = [...state.departments, newDept].sort((a, b) => (a.sort || 0) - (b.sort || 0))
+    storage.set(STORAGE_KEYS.DEPARTMENTS, allDepts)
+    dispatch({ type: actionTypes.ADD_DEPARTMENT, payload: newDept })
+    addOperationLog(OPERATION_ACTIONS.ADD_DEPARTMENT, newDept.name)
+    return newDept
+  }
+
+  const updateDepartment = (id, updates) => {
+    const dept = state.departments.find((d) => d.id === id)
+    if (!dept) return null
+    const updated = { ...dept, ...updates }
+    const allDepts = state.departments
+      .map((d) => (d.id === id ? updated : d))
+      .sort((a, b) => (a.sort || 0) - (b.sort || 0))
+    storage.set(STORAGE_KEYS.DEPARTMENTS, allDepts)
+    dispatch({ type: actionTypes.UPDATE_DEPARTMENT, payload: updated })
+
+    const action = updates.status === 'inactive'
+      ? OPERATION_ACTIONS.DISABLE_DEPARTMENT
+      : updates.status === 'active'
+      ? OPERATION_ACTIONS.ENABLE_DEPARTMENT
+      : OPERATION_ACTIONS.UPDATE_DEPARTMENT
+    addOperationLog(action, updated.name)
+    return updated
+  }
+
   const partialBatchImport = (articles, draftId = null) => {
     const now = formatDate(new Date())
     const newArticles = articles.map((article) => {
@@ -1353,6 +1570,10 @@ export function AppProvider({ children }) {
         deleteImportDraft,
         getImportDraftById,
         partialBatchImport,
+        addCategory,
+        updateCategory,
+        addDepartment,
+        updateDepartment,
       }}
     >
       {children}

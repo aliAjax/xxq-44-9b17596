@@ -1,13 +1,22 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Save, GitBranch, CheckCircle2, XCircle, Info, ChevronDown, ChevronUp, FileText, Calendar, Hash, Copy } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import { useApp } from '../context/useApp'
+import { getActiveCategories } from '../utils/helpers'
 
 export default function ReviewFlowConfig() {
   const { state, updateReviewFlowConfig } = useApp()
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [expandedIds, setExpandedIds] = useState(new Set())
+
+  const activeCategoryCodes = useMemo(() => {
+    return new Set(getActiveCategories(state.categories).map((c) => c.code))
+  }, [state.categories])
+
+  const activeConfigs = useMemo(() => {
+    return state.reviewFlowConfigs.filter((c) => activeCategoryCodes.has(c.categoryCode))
+  }, [state.reviewFlowConfigs, activeCategoryCodes])
 
   const handleToggleTwoLevel = (configId, currentValue) => {
     updateReviewFlowConfig(configId, { requireTwoLevel: !currentValue })
@@ -50,8 +59,8 @@ export default function ReviewFlowConfig() {
     }, 500)
   }
 
-  const twoLevelCount = state.reviewFlowConfigs.filter((c) => c.requireTwoLevel).length
-  const hasRulesCount = state.reviewFlowConfigs.filter((c) => {
+  const twoLevelCount = activeConfigs.filter((c) => c.requireTwoLevel).length
+  const hasRulesCount = activeConfigs.filter((c) => {
     const rules = c.validationRules || {}
     return rules.requireAttachment || rules.minContentLength > 0 || rules.requirePublishDate || rules.forbidDuplicateTitle
   }).length
@@ -98,7 +107,7 @@ export default function ReviewFlowConfig() {
           </div>
 
           <div className="divide-y divide-gray-100">
-            {state.reviewFlowConfigs.map((config) => {
+            {activeConfigs.map((config) => {
               const rules = config.validationRules || {}
               const isExpanded = expandedIds.has(config.id)
               const hasCustomRules = rules.requireAttachment || rules.minContentLength > 0 || rules.requirePublishDate || rules.forbidDuplicateTitle

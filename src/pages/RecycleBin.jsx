@@ -4,6 +4,7 @@ import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
 import { useApp } from '../context/useApp'
+import { getActiveCategories } from '../utils/helpers'
 
 const PAGE_SIZE = 10
 
@@ -96,6 +97,7 @@ export default function RecycleBin() {
               {state.categories.map((cat) => (
                 <option key={cat.code} value={cat.code}>
                   {cat.name}
+                  {cat.status === 'inactive' && ' (已停用)'}
                 </option>
               ))}
             </select>

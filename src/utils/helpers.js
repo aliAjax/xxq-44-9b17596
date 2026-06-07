@@ -24,6 +24,14 @@ export const OPERATION_ACTIONS = {
   LOAD_IMPORT_DRAFT: 'load_import_draft',
   DELETE_IMPORT_DRAFT: 'delete_import_draft',
   PARTIAL_BATCH_IMPORT: 'partial_batch_import',
+  ADD_CATEGORY: 'add_category',
+  UPDATE_CATEGORY: 'update_category',
+  DISABLE_CATEGORY: 'disable_category',
+  ENABLE_CATEGORY: 'enable_category',
+  ADD_DEPARTMENT: 'add_department',
+  UPDATE_DEPARTMENT: 'update_department',
+  DISABLE_DEPARTMENT: 'disable_department',
+  ENABLE_DEPARTMENT: 'enable_department',
 }
 
 export const VERSION_TYPES = {
@@ -97,6 +105,14 @@ export const getActionText = (action) => {
     [OPERATION_ACTIONS.LOAD_IMPORT_DRAFT]: '加载导入草稿',
     [OPERATION_ACTIONS.DELETE_IMPORT_DRAFT]: '删除导入草稿',
     [OPERATION_ACTIONS.PARTIAL_BATCH_IMPORT]: '批量部分导入',
+    [OPERATION_ACTIONS.ADD_CATEGORY]: '新增公开类别',
+    [OPERATION_ACTIONS.UPDATE_CATEGORY]: '编辑公开类别',
+    [OPERATION_ACTIONS.DISABLE_CATEGORY]: '停用公开类别',
+    [OPERATION_ACTIONS.ENABLE_CATEGORY]: '启用公开类别',
+    [OPERATION_ACTIONS.ADD_DEPARTMENT]: '新增科室',
+    [OPERATION_ACTIONS.UPDATE_DEPARTMENT]: '编辑科室',
+    [OPERATION_ACTIONS.DISABLE_DEPARTMENT]: '停用科室',
+    [OPERATION_ACTIONS.ENABLE_DEPARTMENT]: '启用科室',
   }
   return actionMap[action] || action
 }
@@ -124,6 +140,14 @@ export const getActionColor = (action) => {
     [OPERATION_ACTIONS.LOAD_IMPORT_DRAFT]: 'bg-sky-100 text-sky-700',
     [OPERATION_ACTIONS.DELETE_IMPORT_DRAFT]: 'bg-rose-100 text-rose-700',
     [OPERATION_ACTIONS.PARTIAL_BATCH_IMPORT]: 'bg-violet-100 text-violet-700',
+    [OPERATION_ACTIONS.ADD_CATEGORY]: 'bg-blue-100 text-blue-700',
+    [OPERATION_ACTIONS.UPDATE_CATEGORY]: 'bg-indigo-100 text-indigo-700',
+    [OPERATION_ACTIONS.DISABLE_CATEGORY]: 'bg-gray-100 text-gray-700',
+    [OPERATION_ACTIONS.ENABLE_CATEGORY]: 'bg-green-100 text-green-700',
+    [OPERATION_ACTIONS.ADD_DEPARTMENT]: 'bg-blue-100 text-blue-700',
+    [OPERATION_ACTIONS.UPDATE_DEPARTMENT]: 'bg-indigo-100 text-indigo-700',
+    [OPERATION_ACTIONS.DISABLE_DEPARTMENT]: 'bg-gray-100 text-gray-700',
+    [OPERATION_ACTIONS.ENABLE_DEPARTMENT]: 'bg-green-100 text-green-700',
   }
   return colorMap[action] || 'bg-gray-100 text-gray-700'
 }
@@ -396,6 +420,32 @@ export const getContentTextLength = (htmlContent) => {
   if (!htmlContent) return 0
   const text = stripHtml(htmlContent)
   return text.trim().length
+}
+
+export const getActiveCategories = (categories) => {
+  if (!categories || !Array.isArray(categories)) return []
+  return categories
+    .filter((c) => c.status === 'active')
+    .sort((a, b) => (a.sort || 0) - (b.sort || 0))
+}
+
+export const getActiveDepartments = (departments) => {
+  if (!departments || !Array.isArray(departments)) return []
+  return departments
+    .filter((d) => d.status === 'active')
+    .sort((a, b) => (a.sort || 0) - (b.sort || 0))
+}
+
+export const getCategoryName = (categories, categoryCode) => {
+  if (!categories || !categoryCode) return ''
+  const category = categories.find((c) => c.code === categoryCode)
+  return category ? category.name : ''
+}
+
+export const getDepartmentName = (departments, departmentId) => {
+  if (!departments || !departmentId) return ''
+  const dept = departments.find((d) => d.id === departmentId || d.name === departmentId)
+  return dept ? dept.name : ''
 }
 
 export const validateArticle = (articleData, rules, allArticles = [], currentArticleId = null) => {

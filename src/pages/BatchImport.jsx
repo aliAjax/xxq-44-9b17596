@@ -19,7 +19,7 @@ import {
 import AdminLayout from '../components/AdminLayout'
 import { useApp } from '../context/useApp'
 import { storage, STORAGE_KEYS } from '../utils/storage'
-import { getValidationRules, getContentTextLength } from '../utils/helpers'
+import { getValidationRules, getContentTextLength, getActiveCategories, getActiveDepartments } from '../utils/helpers'
 
 const SAMPLE_CSV = `标题,类别,发布科室,发布日期,正文,附件名称,附件链接
 关于开展2024年度政务公开培训的通知,notice,办公室,2024-06-01,"各科室、各下属单位：
@@ -222,6 +222,31 @@ export default function BatchImport() {
     [state.articles]
   )
 
+  const activeCategories = useMemo(() => getActiveCategories(state.categories), [state.categories])
+  const activeDepartments = useMemo(() => getActiveDepartments(state.departments), [state.departments])
+
+  const generateTemplateCSV = useMemo(() => {
+    const sampleCat = activeCategories[0]
+    const sampleDept = activeDepartments[0]
+    const catCode = sampleCat ? sampleCat.code : 'notice'
+    const deptName = sampleDept ? sampleDept.name : '办公室'
+    return `标题,类别,发布科室,发布日期,正文,附件名称,附件链接
+关于开展2024年度政务公开培训的通知,${catCode},${deptName},2024-06-01,"各科室、各下属单位：
+为进一步提升政务公开工作水平，现就开展2024年度政务公开培训通知如下：
+一、培训时间
+二、培训地点
+三、培训内容",培训通知.pdf,https://example.com/training.pdf
+`
+  }, [activeCategories, activeDepartments])
+
+  const categoryListText = useMemo(() => {
+    return activeCategories.map((c) => `${c.name}（代码：${c.code}）`).join('、')
+  }, [activeCategories])
+
+  const departmentListText = useMemo(() => {
+    return activeDepartments.map((d) => d.name).join('、')
+  }, [activeDepartments])
+
   useEffect(() => {
     const draftId = searchParams.get('draftId')
     if (draftId && !parsedData) {
@@ -294,7 +319,7 @@ export default function BatchImport() {
     }))
 
     const validatedRows = initialRows.map((row) =>
-      validateRow(row, state.categories, state.departments, existingTitles, initialRows, state.reviewFlowConfigs)
+      validateRow(row, activeCategories, activeDepartments, existingTitles, initialRows, state.reviewFlowConfigs)
     )
 
     setParsedData(validatedRows)
@@ -305,7 +330,7 @@ export default function BatchImport() {
 
   const revalidateAllRows = (rows) => {
     return rows.map((row) =>
-      validateRow(row, state.categories, state.departments, existingTitles, rows, state.reviewFlowConfigs)
+      validateRow(row, activeCategories, activeDepartments, existingTitles, rows, state.reviewFlowConfigs)
     )
   }
 
@@ -364,7 +389,7 @@ export default function BatchImport() {
   }
 
   const handleDownloadTemplate = () => {
-    const blob = new Blob([SAMPLE_CSV], { type: 'text/csv;charset=utf-8' })
+    const blob = new Blob([generateTemplateCSV], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -680,8 +705,8 @@ export default function BatchImport() {
                   <p className="font-medium mb-1">CSV格式说明</p>
                   <ul className="list-disc list-inside space-y-1 text-blue-600">
                     <li>第一行为表头，列顺序：标题、类别、发布科室、发布日期、正文、附件名称、附件链接</li>
-                    <li>类别使用英文代码（如 policy、notice、plan、finance、personnel、emergency、keyarea）</li>
-                    <li>发布科室使用科室全称，需与系统中已有的科室名称一致</li>
+                    <li>类别使用英文代码，当前可用：{categoryListText || '暂无'}</li>
+                    <li>发布科室使用科室全称，当前可用：{departmentListText || '暂无'}</li>
                     <li>发布日期格式：YYYY-MM-DD，可为空</li>
                     <li>正文中包含逗号或换行时需用双引号包裹</li>
                     <li>标题和正文为必填项</li>
