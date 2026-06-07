@@ -33,6 +33,17 @@ export default function ReviewDashboard() {
   const [rejectReason, setRejectReason] = useState('')
   const [showTemplatePanel, setShowTemplatePanel] = useState(false)
 
+  const isArticlePendingForUser = useCallback((article) => {
+    if (article.status !== 'pending' && article.status !== 'first_reviewed') return false
+    if (userRole === 'reviewer') {
+      return article.status === 'pending'
+    }
+    if (userRole === 'senior_reviewer') {
+      return article.status === 'first_reviewed'
+    }
+    return false
+  }, [userRole])
+
   const canUserOperateArticle = useCallback((article) => {
     if (!currentUser || !article) return false
     if (!isArticlePendingForUser(article)) return false
@@ -56,17 +67,6 @@ export default function ReviewDashboard() {
     }
     return isArticleClaimedByUser(article, currentUser.id)
   }, [currentUser, userRole, isArticlePendingForUser])
-
-  const isArticlePendingForUser = useCallback((article) => {
-    if (article.status !== 'pending' && article.status !== 'first_reviewed') return false
-    if (userRole === 'reviewer') {
-      return article.status === 'pending'
-    }
-    if (userRole === 'senior_reviewer') {
-      return article.status === 'first_reviewed'
-    }
-    return false
-  }, [userRole])
 
   const stats = useMemo(() => {
     const pending = state.articles.filter((a) => !a.deleted && isArticlePendingForUser(a)).length
@@ -162,7 +162,11 @@ export default function ReviewDashboard() {
     if (!article) return
     const newStatus = getApproveStatus(article)
     if (window.confirm(`确定要${getApproveText(article)}这条信息吗？`)) {
-      reviewArticle(id, newStatus)
+      const result = reviewArticle(id, newStatus)
+      if (result && result.success === false) {
+        alert(result.message)
+        return
+      }
       setShowDetailModal(false)
       setDetailArticle(null)
     }
@@ -185,7 +189,11 @@ export default function ReviewDashboard() {
       alert('请填写退回原因')
       return
     }
-    reviewArticle(rejectArticleId, 'rejected', rejectReason)
+    const result = reviewArticle(rejectArticleId, 'rejected', rejectReason)
+    if (result && result.success === false) {
+      alert(result.message)
+      return
+    }
     setShowRejectModal(false)
     setRejectArticleId(null)
     setRejectReason('')

@@ -341,13 +341,13 @@ export const isArticleClaimedByUser = (article, userId) => {
   return article.claimantId === userId
 }
 
-export const canUserOperateArticle = (article, userId, userRole) => {
+export const canUserOperateArticle = (article, userId, _userRole) => {
   if (!article || !userId) return false
   if (!isArticleClaimed(article)) return false
   return article.claimantId === userId
 }
 
-export const canUserClaimArticle = (article, userId, userRole, isArticlePendingForUser) => {
+export const canUserClaimArticle = (article, userId, _userRole, isArticlePendingForUser) => {
   if (!article || !userId) return false
   if (isArticleClaimed(article)) return false
   if (typeof isArticlePendingForUser === 'function') {

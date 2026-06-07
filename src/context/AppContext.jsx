@@ -685,6 +685,13 @@ export function AppProvider({ children }) {
     const currentUser = state.currentUser
     if (!currentUser) return null
 
+    if (!article.claimantId) {
+      return { success: false, message: '请先认领任务后再进行审核操作' }
+    }
+    if (article.claimantId !== currentUser.id) {
+      return { success: false, message: '该任务已被其他人认领，您无法操作' }
+    }
+
     const needTwoLevel = isTwoLevelReview(article.category)
     const now = formatDate(new Date())
     const newPublishDate = status === 'published'
@@ -831,6 +838,8 @@ export function AppProvider({ children }) {
     }
 
     addOperationLog(reviewAction, article.title)
+
+    return { success: true }
   }
 
   const claimArticle = (id) => {

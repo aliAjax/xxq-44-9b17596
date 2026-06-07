@@ -29,6 +29,17 @@ export default function ReviewList() {
 
   const userRole = currentUser?.role
 
+  const isArticlePendingForUser = useCallback((article) => {
+    if (article.status !== 'pending' && article.status !== 'first_reviewed') return false
+    if (userRole === 'reviewer') {
+      return article.status === 'pending'
+    }
+    if (userRole === 'senior_reviewer') {
+      return article.status === 'first_reviewed'
+    }
+    return false
+  }, [userRole])
+
   const canUserOperateArticle = useCallback((article) => {
     if (!currentUser || !article) return false
     if (!isArticlePendingForUser(article)) return false
@@ -52,17 +63,6 @@ export default function ReviewList() {
     }
     return isArticleClaimedByUser(article, currentUser.id)
   }, [currentUser, userRole, isArticlePendingForUser])
-
-  const isArticlePendingForUser = useCallback((article) => {
-    if (article.status !== 'pending' && article.status !== 'first_reviewed') return false
-    if (userRole === 'reviewer') {
-      return article.status === 'pending'
-    }
-    if (userRole === 'senior_reviewer') {
-      return article.status === 'first_reviewed'
-    }
-    return false
-  }, [userRole])
 
   const filteredArticles = useMemo(() => {
     let result = state.articles.filter((a) => !a.deleted)
@@ -145,7 +145,10 @@ export default function ReviewList() {
     if (!article) return
     const newStatus = getApproveStatus(article)
     if (window.confirm(`确定要${getApproveText(article)}这条信息吗？`)) {
-      reviewArticle(id, newStatus)
+      const result = reviewArticle(id, newStatus)
+      if (result && result.success === false) {
+        alert(result.message)
+      }
     }
   }
 
@@ -166,7 +169,11 @@ export default function ReviewList() {
       alert('请填写退回原因')
       return
     }
-    reviewArticle(rejectArticleId, 'rejected', rejectReason)
+    const result = reviewArticle(rejectArticleId, 'rejected', rejectReason)
+    if (result && result.success === false) {
+      alert(result.message)
+      return
+    }
     setShowRejectModal(false)
     setRejectArticleId(null)
     setRejectReason('')
