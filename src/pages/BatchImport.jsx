@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useState, useRef, useEffect, useMemo, Fragment } from 'react'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Upload,
@@ -9,6 +9,17 @@ import {
   AlertTriangle,
   Download,
   Info,
+  Save,
+  FileArchive,
+  Edit2,
+  Check,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Paperclip,
+  Trash2,
+  Square,
+  CheckSquare,
 } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import { useApp } from '../context/useApp'
@@ -80,11 +91,11 @@ function parseCSV(text) {
   return result
 }
 
-function validateRow(row, categories, departments, existingTitles, rowIndex) {
+function validateRow(rowData, categories, departments, existingTitles, allRows) {
   const errors = []
   const warnings = []
 
-  const [title, categoryCode, department, publishDate, content, attachmentName, attachmentUrl] = row
+  const { title, categoryCode, department, publishDate, content } = rowData
 
   if (!title || !title.trim()) {
     errors.push('标题不能为空')
@@ -123,15 +134,19 @@ function validateRow(row, categories, departments, existingTitles, rowIndex) {
     warnings.push('标题与现有文章重复')
   }
 
+  if (title && title.trim() && allRows) {
+    const sameTitleCount = allRows.filter(
+      (r) => r.title && r.title.trim() === title.trim()
+    ).length
+    if (sameTitleCount > 1) {
+      if (!warnings.includes('导入数据内存在重复标题')) {
+        warnings.push('导入数据内存在重复标题')
+      }
+    }
+  }
+
   return {
-    rowIndex,
-    title: title || '',
-    categoryCode: categoryCode || '',
-    department: department || '',
-    publishDate: publishDate || '',
-    content: content || '',
-    attachmentName: attachmentName || '',
-    attachmentUrl: attachmentUrl || '',
+    ...rowData,
     errors,
     warnings,
     isValid: errors.length === 0,
@@ -139,8 +154,16 @@ function validateRow(row, categories, departments, existingTitles, rowIndex) {
 }
 
 export default function BatchImport() {
-  const { state, batchAddArticles } = useApp()
+  const {
+    state,
+    batchAddArticles,
+    saveImportDraft,
+    updateImportDraft,
+    getImportDraftById,
+    partialBatchImport,
+  } = useApp()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const fileInputRef = useRef(null)
 
   const [inputMode, setInputMode] = useState('upload')
@@ -148,10 +171,31 @@ export default function BatchImport() {
   const [parsedData, setParsedData] = useState(null)
   const [importResult, setImportResult] = useState(null)
   const [isImporting, setIsImporting] = useState(false)
+  const [selectedRows, setSelectedRows] = useState(new Set())
+  const [editingRow, setEditingRow] = useState(null)
+  const [expandedRows, setExpandedRows] = useState(new Set())
+  const [showSaveDraftModal, setShowSaveDraftModal] = useState(false)
+  const [draftName, setDraftName] = useState('')
+  const [currentDraftId, setCurrentDraftId] = useState(null)
+  const [editingField, setEditingField] = useState(null)
 
-  const existingTitles = new Set(
-    state.articles.filter((a) => !a.deleted).map((a) => a.title.trim())
+  const existingTitles = useMemo(
+    () => new Set(state.articles.filter((a) => !a.deleted).map((a) => a.title.trim())),
+    [state.articles]
   )
+
+  useEffect(() => {
+    const draftId = searchParams.get('draftId')
+    if (draftId) {
+      const draft = getImportDraftById(draftId)
+      if (draft) {
+        setParsedData(draft.rows)
+        setCurrentDraftId(draft.id)
+        setDraftName(draft.name)
+        setInputMode(draft.sourceType)
+      }
+    }
+  }, [searchParams, getImportDraftById])
 
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0]
@@ -163,6 +207,7 @@ export default function BatchImport() {
       if (typeof text === 'string') {
         setCsvText(text)
         processCSV(text)
+        setCurrentDraftId(null)
       }
     }
     reader.readAsText(file, 'UTF-8')
@@ -174,6 +219,7 @@ export default function BatchImport() {
       return
     }
     processCSV(csvText)
+    setCurrentDraftId(null)
   }
 
   const processCSV = (text) => {
@@ -184,29 +230,89 @@ export default function BatchImport() {
     }
 
     const dataRows = rows.slice(1)
-    const validatedRows = dataRows.map((row, index) =>
-      validateRow(row, state.categories, state.departments, existingTitles, index + 1)
+    const initialRows = dataRows.map((row, index) => ({
+      rowIndex: index + 1,
+      title: row[0] || '',
+      categoryCode: row[1] || '',
+      department: row[2] || '',
+      publishDate: row[3] || '',
+      content: row[4] || '',
+      attachmentName: row[5] || '',
+      attachmentUrl: row[6] || '',
+      errors: [],
+      warnings: [],
+      isValid: false,
+    }))
+
+    const validatedRows = initialRows.map((row) =>
+      validateRow(row, state.categories, state.departments, existingTitles, initialRows)
     )
-
-    const titleCounts = {}
-    validatedRows.forEach((row) => {
-      const title = row.title.trim()
-      if (title) {
-        titleCounts[title] = (titleCounts[title] || 0) + 1
-      }
-    })
-
-    validatedRows.forEach((row) => {
-      const title = row.title.trim()
-      if (title && titleCounts[title] > 1) {
-        if (!row.warnings.includes('导入数据内存在重复标题')) {
-          row.warnings.push('导入数据内存在重复标题')
-        }
-      }
-    })
 
     setParsedData(validatedRows)
     setImportResult(null)
+    setSelectedRows(new Set(validatedRows.filter((r) => r.isValid).map((_, i) => i)))
+    setEditingRow(null)
+    setExpandedRows(new Set())
+  }
+
+  const revalidateAllRows = (rows) => {
+    return rows.map((row) =>
+      validateRow(row, state.categories, state.departments, existingTitles, rows)
+    )
+  }
+
+  const handleRowFieldChange = (rowIndex, field, value) => {
+    const newData = [...parsedData]
+    newData[rowIndex] = {
+      ...newData[rowIndex],
+      [field]: value,
+    }
+    const validated = revalidateAllRows(newData)
+    setParsedData(validated)
+
+    const newSelected = new Set(selectedRows)
+    for (let i = 0; i < validated.length; i++) {
+      if (!validated[i].isValid && newSelected.has(i)) {
+        newSelected.delete(i)
+      }
+    }
+    setSelectedRows(newSelected)
+  }
+
+  const handleSelectRow = (index, checked) => {
+    const newSelected = new Set(selectedRows)
+    if (checked) {
+      if (parsedData[index].isValid) {
+        newSelected.add(index)
+      } else {
+        alert('错误行无法选择导入，请先修正错误')
+        return
+      }
+    } else {
+      newSelected.delete(index)
+    }
+    setSelectedRows(newSelected)
+  }
+
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      const validIndexes = parsedData
+        .map((row, index) => (row.isValid ? index : -1))
+        .filter((i) => i !== -1)
+      setSelectedRows(new Set(validIndexes))
+    } else {
+      setSelectedRows(new Set())
+    }
+  }
+
+  const toggleExpandRow = (index) => {
+    const newExpanded = new Set(expandedRows)
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index)
+    } else {
+      newExpanded.add(index)
+    }
+    setExpandedRows(newExpanded)
   }
 
   const handleDownloadTemplate = () => {
@@ -221,10 +327,55 @@ export default function BatchImport() {
     URL.revokeObjectURL(url)
   }
 
+  const handleSaveDraftClick = () => {
+    if (!parsedData) return
+    setDraftName(currentDraftId ? draftName : `导入草稿-${new Date().toLocaleString()}`)
+    setShowSaveDraftModal(true)
+  }
+
+  const handleSaveDraft = () => {
+    if (!parsedData) return
+
+    const validCount = parsedData.filter((r) => r.isValid).length
+    const errorCount = parsedData.filter((r) => !r.isValid).length
+    const warningCount = parsedData.filter((r) => r.warnings.length > 0 && r.isValid).length
+
+    const draftData = {
+      name: draftName.trim() || `导入草稿-${new Date().toLocaleString()}`,
+      rows: parsedData,
+      totalCount: parsedData.length,
+      validCount,
+      errorCount,
+      warningCount,
+      sourceType: inputMode,
+    }
+
+    if (currentDraftId) {
+      updateImportDraft(currentDraftId, draftData)
+    } else {
+      const newDraft = saveImportDraft(draftData)
+      if (newDraft) {
+        setCurrentDraftId(newDraft.id)
+      }
+    }
+
+    setShowSaveDraftModal(false)
+    alert('草稿保存成功！')
+  }
+
   const handleImport = () => {
     if (!parsedData) return
 
-    const validRows = parsedData.filter((row) => row.isValid)
+    const selectedIndexes = Array.from(selectedRows)
+    if (selectedIndexes.length === 0) {
+      alert('请选择要导入的行')
+      return
+    }
+
+    const validRows = selectedIndexes
+      .map((i) => parsedData[i])
+      .filter((row) => row.isValid)
+
     if (validRows.length === 0) {
       alert('没有可导入的有效数据，请修正错误后重试')
       return
@@ -252,12 +403,17 @@ export default function BatchImport() {
         status: 'draft',
       }))
 
-      const imported = batchAddArticles(articles)
+      const imported = partialBatchImport(articles, currentDraftId)
+
+      if (currentDraftId) {
+        setCurrentDraftId(null)
+      }
 
       setImportResult({
         total: parsedData.length,
+        selected: selectedIndexes.length,
         success: imported.length,
-        failed: parsedData.length - validRows.length,
+        failed: selectedIndexes.length - validRows.length,
         warnings: validRows.filter((r) => r.warnings.length > 0).length,
       })
 
@@ -266,9 +422,17 @@ export default function BatchImport() {
   }
 
   const handleReset = () => {
+    if (parsedData && !window.confirm('确定要重新开始吗？当前数据将丢失。')) {
+      return
+    }
     setCsvText('')
     setParsedData(null)
     setImportResult(null)
+    setSelectedRows(new Set())
+    setEditingRow(null)
+    setExpandedRows(new Set())
+    setCurrentDraftId(null)
+    setDraftName('')
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -279,6 +443,9 @@ export default function BatchImport() {
   const warningCount = parsedData
     ? parsedData.filter((r) => r.warnings.length > 0 && r.isValid).length
     : 0
+  const selectedCount = selectedRows.size
+  const allValidSelected =
+    parsedData && validCount > 0 && selectedCount === validCount
 
   return (
     <AdminLayout>
@@ -290,10 +457,34 @@ export default function BatchImport() {
           <ArrowLeft className="w-4 h-4" />
           返回列表
         </Link>
-        <h2 className="text-xl font-bold text-gray-800">批量导入公开信息</h2>
-        <p className="text-gray-500 text-sm mt-1">
-          通过CSV文件或粘贴文本批量导入政务公开信息草稿
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">批量导入公开信息</h2>
+            <p className="text-gray-500 text-sm mt-1">
+              通过CSV文件或粘贴文本批量导入政务公开信息草稿
+            </p>
+          </div>
+          {parsedData && (
+            <button
+              onClick={() => navigate('/admin/import-drafts')}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+            >
+              <FileArchive className="w-4 h-4" />
+              草稿箱
+              {state.importDrafts.length > 0 && (
+                <span className="bg-primary-100 text-primary-700 text-xs px-2 py-0.5 rounded-full">
+                  {state.importDrafts.length}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+        {currentDraftId && (
+          <div className="mt-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-sm text-indigo-700 inline-flex items-center gap-2">
+            <FileArchive className="w-4 h-4" />
+            正在编辑草稿：<span className="font-medium">{draftName}</span>
+          </div>
+        )}
       </div>
 
       {importResult ? (
@@ -305,12 +496,18 @@ export default function BatchImport() {
             <h3 className="text-lg font-bold text-gray-800 mb-2">导入完成</h3>
             <p className="text-gray-500 mb-6">批量导入操作已完成</p>
 
-            <div className="grid grid-cols-4 gap-4 max-w-xl mx-auto mb-8">
+            <div className="grid grid-cols-5 gap-4 max-w-2xl mx-auto mb-8">
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="text-2xl font-bold text-gray-800">
                   {importResult.total}
                 </div>
                 <div className="text-sm text-gray-500">总记录数</div>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-4">
+                <div className="text-2xl font-bold text-blue-600">
+                  {importResult.selected}
+                </div>
+                <div className="text-sm text-gray-500">已选择</div>
               </div>
               <div className="bg-green-50 rounded-lg p-4">
                 <div className="text-2xl font-bold text-green-600">
@@ -338,6 +535,13 @@ export default function BatchImport() {
                 className="px-5 py-2.5 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors font-medium"
               >
                 继续导入
+              </button>
+              <button
+                onClick={() => navigate('/admin/import-drafts')}
+                className="px-5 py-2.5 border border-indigo-300 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors font-medium flex items-center gap-2"
+              >
+                <FileArchive className="w-4 h-4" />
+                草稿箱
               </button>
               <button
                 onClick={() => navigate('/admin/articles')}
@@ -442,9 +646,9 @@ export default function BatchImport() {
 
           {parsedData && (
             <div className="bg-white rounded-lg shadow-sm">
-              <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <h3 className="font-medium text-gray-800">数据预览</h3>
+              <div className="p-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-4">
+                  <h3 className="font-medium text-gray-800">数据预览与编辑</h3>
                   <div className="flex items-center gap-3 text-sm">
                     <span className="text-gray-500">
                       共 <span className="font-medium text-gray-700">{parsedData.length}</span> 条
@@ -462,9 +666,19 @@ export default function BatchImport() {
                         ⚠ {warningCount} 条警告
                       </span>
                     )}
+                    <span className="text-blue-600">
+                      ☐ 已选 {selectedCount} 条
+                    </span>
                   </div>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveDraftClick}
+                    className="px-4 py-2 border border-indigo-300 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors text-sm font-medium flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    {currentDraftId ? '更新草稿' : '保存草稿'}
+                  </button>
                   <button
                     onClick={handleReset}
                     className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
@@ -473,7 +687,7 @@ export default function BatchImport() {
                   </button>
                   <button
                     onClick={handleImport}
-                    disabled={validCount === 0 || isImporting}
+                    disabled={selectedCount === 0 || isImporting}
                     className="px-4 py-2 bg-primary-800 text-white rounded-lg hover:bg-primary-900 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium flex items-center gap-2"
                   >
                     {isImporting ? (
@@ -482,115 +696,357 @@ export default function BatchImport() {
                         导入中...
                       </>
                     ) : (
-                      '确认导入草稿'
+                      `导入选中的 ${selectedCount} 条`
                     )}
                   </button>
                 </div>
               </div>
 
-              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                 <table className="w-full">
-                  <thead className="sticky top-0 bg-gray-50">
+                  <thead className="sticky top-0 bg-gray-50 z-10">
                     <tr className="border-b border-gray-100">
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-16">
+                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 uppercase w-10">
+                        <input
+                          type="checkbox"
+                          checked={allValidSelected}
+                          onChange={(e) => handleSelectAll(e.target.checked)}
+                          className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                        />
+                      </th>
+                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 uppercase w-14">
                         行号
                       </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 uppercase">
                         标题
                       </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-24">
+                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 uppercase w-28">
                         类别
                       </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
+                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 uppercase w-28">
                         发布科室
                       </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
+                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 uppercase w-28">
                         发布日期
                       </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-32">
+                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 uppercase w-20">
                         状态
+                      </th>
+                      <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 uppercase w-20">
+                        展开
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {parsedData.map((row, index) => (
-                      <tr
-                        key={index}
-                        className={`border-b border-gray-50 ${
-                          !row.isValid
-                            ? 'bg-red-50'
-                            : row.warnings.length > 0
-                            ? 'bg-yellow-50'
-                            : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        <td className="px-4 py-3 text-sm text-gray-500">
-                          {row.rowIndex}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-sm text-gray-900 font-medium line-clamp-1">
-                            {row.title || '(空)'}
-                          </div>
-                          {(row.errors.length > 0 || row.warnings.length > 0) && (
-                            <div className="mt-1 space-y-0.5">
-                              {row.errors.map((err, i) => (
-                                <div
-                                  key={`err-${i}`}
-                                  className="text-xs text-red-600 flex items-center gap-1"
-                                >
-                                  <XCircle className="w-3 h-3" />
-                                  {err}
-                                </div>
+                      <Fragment key={index}>
+                        <tr
+                          className={`border-b border-gray-50 ${
+                            !row.isValid
+                              ? 'bg-red-50'
+                              : row.warnings.length > 0
+                              ? 'bg-yellow-50'
+                              : 'hover:bg-gray-50'
+                          } ${expandedRows.has(index) ? 'bg-gray-50' : ''}`}
+                        >
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedRows.has(index)}
+                              onChange={(e) => handleSelectRow(index, e.target.checked)}
+                              disabled={!row.isValid}
+                              className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-500">
+                            {row.rowIndex}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="text"
+                              value={row.title}
+                              onChange={(e) =>
+                                handleRowFieldChange(index, 'title', e.target.value)
+                              }
+                              className={`w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 ${
+                                row.errors.some((e) => e.includes('标题'))
+                                  ? 'border-red-300 bg-red-50'
+                                  : 'border-gray-200'
+                              }`}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={row.categoryCode}
+                              onChange={(e) =>
+                                handleRowFieldChange(index, 'categoryCode', e.target.value)
+                              }
+                              className={`w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 ${
+                                row.errors.some((e) => e.includes('类别'))
+                                  ? 'border-red-300 bg-red-50'
+                                  : 'border-gray-200'
+                              }`}
+                            >
+                              <option value="">请选择</option>
+                              {state.categories.map((cat) => (
+                                <option key={cat.code} value={cat.code}>
+                                  {cat.name}
+                                </option>
                               ))}
-                              {row.warnings.map((warn, i) => (
-                                <div
-                                  key={`warn-${i}`}
-                                  className="text-xs text-yellow-600 flex items-center gap-1"
-                                >
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={row.department}
+                              onChange={(e) =>
+                                handleRowFieldChange(index, 'department', e.target.value)
+                              }
+                              className={`w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 ${
+                                row.errors.some((e) => e.includes('科室'))
+                                  ? 'border-red-300 bg-red-50'
+                                  : 'border-gray-200'
+                              }`}
+                            >
+                              <option value="">请选择</option>
+                              {state.departments.map((dept) => (
+                                <option key={dept.id} value={dept.name}>
+                                  {dept.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="date"
+                              value={row.publishDate}
+                              onChange={(e) =>
+                                handleRowFieldChange(index, 'publishDate', e.target.value)
+                              }
+                              className={`w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 ${
+                                row.errors.some((e) => e.includes('日期'))
+                                  ? 'border-red-300 bg-red-50'
+                                  : 'border-gray-200'
+                              }`}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            {row.isValid ? (
+                              row.warnings.length > 0 ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-yellow-700 bg-yellow-100 px-2 py-1 rounded">
                                   <AlertTriangle className="w-3 h-3" />
-                                  {warn}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {row.categoryCode || '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {row.department || '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {row.publishDate || '-'}
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.isValid ? (
-                            row.warnings.length > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-xs text-yellow-700 bg-yellow-100 px-2 py-1 rounded">
-                                <AlertTriangle className="w-3 h-3" />
-                                有警告
-                              </span>
+                                  有警告
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
+                                  <CheckCircle className="w-3 h-3" />
+                                  有效
+                                </span>
+                              )
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
-                                <CheckCircle className="w-3 h-3" />
-                                有效
+                              <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-100 px-2 py-1 rounded">
+                                <XCircle className="w-3 h-3" />
+                                有错误
                               </span>
-                            )
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-100 px-2 py-1 rounded">
-                              <XCircle className="w-3 h-3" />
-                              有错误
-                            </span>
-                          )}
-                        </td>
-                      </tr>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <button
+                              onClick={() => toggleExpandRow(index)}
+                              className="p-1 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
+                              title="展开详情"
+                            >
+                              {expandedRows.has(index) ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+                        {expandedRows.has(index) && (
+                          <tr className="bg-gray-50 border-b border-gray-100">
+                            <td colSpan="8" className="px-6 py-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                    错误与警告
+                                  </label>
+                                  <div className="space-y-1">
+                                    {row.errors.map((err, i) => (
+                                      <div
+                                        key={`err-${i}`}
+                                        className="text-xs text-red-600 flex items-center gap-1"
+                                      >
+                                        <XCircle className="w-3 h-3 flex-shrink-0" />
+                                        {err}
+                                      </div>
+                                    ))}
+                                    {row.warnings.map((warn, i) => (
+                                      <div
+                                        key={`warn-${i}`}
+                                        className="text-xs text-yellow-600 flex items-center gap-1"
+                                      >
+                                        <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                                        {warn}
+                                      </div>
+                                    ))}
+                                    {row.errors.length === 0 && row.warnings.length === 0 && (
+                                      <div className="text-xs text-green-600 flex items-center gap-1">
+                                        <CheckCircle className="w-3 h-3" />
+                                        数据校验通过
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                    正文内容
+                                  </label>
+                                  <textarea
+                                    value={row.content}
+                                    onChange={(e) =>
+                                      handleRowFieldChange(index, 'content', e.target.value)
+                                    }
+                                    rows={4}
+                                    className={`w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-primary-500 ${
+                                      row.errors.some((e) => e.includes('正文'))
+                                        ? 'border-red-300 bg-red-50'
+                                        : 'border-gray-200'
+                                    }`}
+                                  />
+                                </div>
+                                <div className="col-span-2">
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                    附件信息
+                                  </label>
+                                  <div className="flex gap-3">
+                                    <div className="flex-1">
+                                      <div className="relative">
+                                        <Paperclip className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                        <input
+                                          type="text"
+                                          value={row.attachmentName}
+                                          onChange={(e) =>
+                                            handleRowFieldChange(
+                                              index,
+                                              'attachmentName',
+                                              e.target.value
+                                            )
+                                          }
+                                          placeholder="附件名称"
+                                          className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary-500"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="flex-1">
+                                      <input
+                                        type="text"
+                                        value={row.attachmentUrl}
+                                        onChange={(e) =>
+                                          handleRowFieldChange(
+                                            index,
+                                            'attachmentUrl',
+                                            e.target.value
+                                          )
+                                        }
+                                        placeholder="附件链接URL"
+                                        className="w-full px-4 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary-500"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
               </div>
+
+              <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+                <div className="text-sm text-gray-500">
+                  已选择 <span className="font-medium text-primary-600">{selectedCount}</span> / {validCount} 条有效数据
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveDraftClick}
+                    className="px-4 py-2 border border-indigo-300 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors text-sm font-medium flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    {currentDraftId ? '更新草稿' : '保存草稿'}
+                  </button>
+                  <button
+                    onClick={handleImport}
+                    disabled={selectedCount === 0 || isImporting}
+                    className="px-5 py-2 bg-primary-800 text-white rounded-lg hover:bg-primary-900 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium flex items-center gap-2"
+                  >
+                    {isImporting ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        导入中...
+                      </>
+                    ) : (
+                      <>
+                        导入选中的 {selectedCount} 条草稿
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </>
+      )}
+
+      {showSaveDraftModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md fade-in">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">
+                {currentDraftId ? '更新草稿' : '保存草稿'}
+              </h3>
+              <button
+                onClick={() => setShowSaveDraftModal(false)}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                草稿名称
+              </label>
+              <input
+                type="text"
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                placeholder="请输入草稿名称"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                autoFocus
+              />
+              <p className="mt-2 text-xs text-gray-500">
+                保存后可在"导入草稿箱"中继续编辑，刷新页面不会丢失
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
+              <button
+                onClick={() => setShowSaveDraftModal(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors text-sm"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSaveDraft}
+                className="px-4 py-2 bg-primary-800 text-white rounded-lg hover:bg-primary-900 transition-colors text-sm flex items-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AdminLayout>
   )

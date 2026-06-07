@@ -21,6 +21,7 @@ const initialState = {
   operationLogs: [],
   reviewFlowConfigs: [],
   articleVersions: [],
+  importDrafts: [],
 }
 
 const actionTypes = {
@@ -44,6 +45,10 @@ const actionTypes = {
   INIT_REVIEW_FLOW_CONFIGS: 'INIT_REVIEW_FLOW_CONFIGS',
   ADD_ARTICLE_VERSION: 'ADD_ARTICLE_VERSION',
   INIT_ARTICLE_VERSIONS: 'INIT_ARTICLE_VERSIONS',
+  SAVE_IMPORT_DRAFT: 'SAVE_IMPORT_DRAFT',
+  UPDATE_IMPORT_DRAFT: 'UPDATE_IMPORT_DRAFT',
+  DELETE_IMPORT_DRAFT: 'DELETE_IMPORT_DRAFT',
+  INIT_IMPORT_DRAFTS: 'INIT_IMPORT_DRAFTS',
 }
 
 function reducer(state, action) {
@@ -206,6 +211,28 @@ function reducer(state, action) {
       return {
         ...state,
         articleVersions: action.payload,
+      }
+    case actionTypes.INIT_IMPORT_DRAFTS:
+      return {
+        ...state,
+        importDrafts: action.payload,
+      }
+    case actionTypes.SAVE_IMPORT_DRAFT:
+      return {
+        ...state,
+        importDrafts: [action.payload, ...state.importDrafts],
+      }
+    case actionTypes.UPDATE_IMPORT_DRAFT:
+      return {
+        ...state,
+        importDrafts: state.importDrafts.map((d) =>
+          d.id === action.payload.id ? action.payload : d
+        ),
+      }
+    case actionTypes.DELETE_IMPORT_DRAFT:
+      return {
+        ...state,
+        importDrafts: state.importDrafts.filter((d) => d.id !== action.payload),
       }
     default:
       return state
@@ -415,6 +442,12 @@ export function AppProvider({ children }) {
     const loadedVersions = storage.get(STORAGE_KEYS.ARTICLE_VERSIONS) || []
     const finalVersions = migrateArticleVersions(loadedVersions, finalArticles)
 
+    const currentUser = storage.get(STORAGE_KEYS.CURRENT_USER)
+    const allImportDrafts = storage.get(STORAGE_KEYS.IMPORT_DRAFTS) || []
+    const userImportDrafts = currentUser
+      ? allImportDrafts.filter((d) => d.createdBy === currentUser.id)
+      : []
+
     dispatch({
       type: actionTypes.INIT_DATA,
       payload: {
@@ -425,8 +458,9 @@ export function AppProvider({ children }) {
         rejectTemplates: storage.get(STORAGE_KEYS.REJECT_TEMPLATES) || [],
         operationLogs: storage.get(STORAGE_KEYS.OPERATION_LOGS) || [],
         reviewFlowConfigs: finalFlowConfigs,
-        currentUser: storage.get(STORAGE_KEYS.CURRENT_USER),
+        currentUser,
         articleVersions: finalVersions,
+        importDrafts: userImportDrafts,
       },
     })
   }, [])
@@ -439,6 +473,11 @@ export function AppProvider({ children }) {
       const userInfo = { id: user.id, username: user.username, role: user.role, name: user.name }
       storage.set(STORAGE_KEYS.CURRENT_USER, userInfo)
       dispatch({ type: actionTypes.SET_USER, payload: userInfo })
+
+      const allImportDrafts = storage.get(STORAGE_KEYS.IMPORT_DRAFTS) || []
+      const userDrafts = allImportDrafts.filter((d) => d.createdBy === user.id)
+      dispatch({ type: actionTypes.INIT_IMPORT_DRAFTS, payload: userDrafts })
+
       return { success: true, user: userInfo }
     }
     return { success: false, message: '用户名或密码错误' }
@@ -447,6 +486,7 @@ export function AppProvider({ children }) {
   const logout = () => {
     storage.remove(STORAGE_KEYS.CURRENT_USER)
     dispatch({ type: actionTypes.LOGOUT })
+    dispatch({ type: actionTypes.INIT_IMPORT_DRAFTS, payload: [] })
   }
 
   const addOperationLog = (action, articleTitle) => {
@@ -1113,6 +1153,135 @@ export function AppProvider({ children }) {
     return result
   }
 
+  const saveImportDraft = (draftData) => {
+    if (!state.currentUser) return null
+
+    const now = formatDateTime(new Date())
+    const allDrafts = storage.get(STORAGE_KEYS.IMPORT_DRAFTS) || []
+
+    const newDraft = {
+      id: generateId(),
+      name: draftData.name || `导入草稿-${now}`,
+      rows: draftData.rows || [],
+      totalCount: draftData.totalCount || 0,
+      validCount: draftData.validCount || 0,
+      errorCount: draftData.errorCount || 0,
+      warningCount: draftData.warningCount || 0,
+      sourceType: draftData.sourceType || 'upload',
+      createdBy: state.currentUser.id,
+      createdByName: state.currentUser.name,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    const updatedDrafts = [newDraft, ...allDrafts]
+    storage.set(STORAGE_KEYS.IMPORT_DRAFTS, updatedDrafts)
+
+    const userDrafts = updatedDrafts.filter((d) => d.createdBy === state.currentUser.id)
+    dispatch({ type: actionTypes.INIT_IMPORT_DRAFTS, payload: userDrafts })
+
+    addOperationLog(OPERATION_ACTIONS.SAVE_IMPORT_DRAFT, newDraft.name)
+
+    return newDraft
+  }
+
+  const updateImportDraft = (draftId, draftData) => {
+    if (!state.currentUser) return null
+
+    const allDrafts = storage.get(STORAGE_KEYS.IMPORT_DRAFTS) || []
+    const draftIndex = allDrafts.findIndex((d) => d.id === draftId)
+    if (draftIndex === -1) return null
+
+    const now = formatDateTime(new Date())
+    const updatedDraft = {
+      ...allDrafts[draftIndex],
+      ...draftData,
+      updatedAt: now,
+    }
+
+    allDrafts[draftIndex] = updatedDraft
+    storage.set(STORAGE_KEYS.IMPORT_DRAFTS, allDrafts)
+
+    const userDrafts = allDrafts.filter((d) => d.createdBy === state.currentUser.id)
+    dispatch({ type: actionTypes.INIT_IMPORT_DRAFTS, payload: userDrafts })
+
+    return updatedDraft
+  }
+
+  const deleteImportDraft = (draftId) => {
+    if (!state.currentUser) return false
+
+    const allDrafts = storage.get(STORAGE_KEYS.IMPORT_DRAFTS) || []
+    const draft = allDrafts.find((d) => d.id === draftId)
+    if (!draft) return false
+
+    const updatedDrafts = allDrafts.filter((d) => d.id !== draftId)
+    storage.set(STORAGE_KEYS.IMPORT_DRAFTS, updatedDrafts)
+
+    const userDrafts = updatedDrafts.filter((d) => d.createdBy === state.currentUser.id)
+    dispatch({ type: actionTypes.INIT_IMPORT_DRAFTS, payload: userDrafts })
+
+    addOperationLog(OPERATION_ACTIONS.DELETE_IMPORT_DRAFT, draft.name)
+
+    return true
+  }
+
+  const getImportDraftById = (draftId) => {
+    return state.importDrafts.find((d) => d.id === draftId) || null
+  }
+
+  const partialBatchImport = (articles, draftId = null) => {
+    const now = formatDate(new Date())
+    const newArticles = articles.map((article) => {
+      const category = state.categories.find((c) => c.code === article.category)
+      const needTwoLevel = isTwoLevelReview(article.category)
+      const reviewStage = article.status === 'pending' && needTwoLevel ? 'first_pending' : ''
+      return {
+        ...article,
+        id: generateId(),
+        categoryName: category ? category.name : '',
+        authorId: state.currentUser.id,
+        authorName: state.currentUser.name,
+        createdAt: now,
+        updatedAt: now,
+        reviewedAt: '',
+        reviewerId: '',
+        reviewerName: '',
+        rejectReason: '',
+        firstReviewerId: '',
+        firstReviewerName: '',
+        firstReviewedAt: '',
+        finalReviewerId: '',
+        finalReviewerName: '',
+        finalReviewedAt: '',
+        reviewStage,
+        reviewHistory: [],
+        claimantId: '',
+        claimantName: '',
+        claimedAt: '',
+        deleted: false,
+      }
+    })
+    const allArticles = [...newArticles, ...state.articles]
+    storage.set(STORAGE_KEYS.ARTICLES, allArticles)
+    dispatch({ type: actionTypes.BATCH_ADD_ARTICLES, payload: newArticles })
+
+    newArticles.forEach((article) => {
+      const versionType = article.status === 'pending'
+        ? VERSION_TYPES.SUBMIT_REVIEW
+        : VERSION_TYPES.SAVE_DRAFT
+      addArticleVersion(article, versionType)
+    })
+
+    addOperationLog(OPERATION_ACTIONS.PARTIAL_BATCH_IMPORT, `共${newArticles.length}条`)
+
+    if (draftId) {
+      deleteImportDraft(draftId)
+    }
+
+    return newArticles
+  }
+
   return (
     <AppContext.Provider
       value={{
@@ -1142,6 +1311,11 @@ export function AppProvider({ children }) {
         getArticleVersionById,
         compareVersions,
         restoreArticleFromVersion,
+        saveImportDraft,
+        updateImportDraft,
+        deleteImportDraft,
+        getImportDraftById,
+        partialBatchImport,
       }}
     >
       {children}

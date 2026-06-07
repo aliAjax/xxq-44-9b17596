@@ -14,6 +14,7 @@ import RecycleBin from './pages/RecycleBin'
 import DepartmentStats from './pages/DepartmentStats'
 import PublishCalendar from './pages/PublishCalendar'
 import OperationLog from './pages/OperationLog'
+import ImportDrafts from './pages/ImportDrafts'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -54,6 +55,14 @@ function App() {
         element={
           <ProtectedRoute allowedRoles={['editor']}>
             <BatchImport />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/import-drafts"
+        element={
+          <ProtectedRoute allowedRoles={['editor']}>
+            <ImportDrafts />
           </ProtectedRoute>
         }
       />

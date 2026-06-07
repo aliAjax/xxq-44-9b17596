@@ -11,6 +11,7 @@ const STORAGE_KEYS = {
   REVIEW_FLOW_INITIALIZED: 'gov_review_flow_initialized',
   ARTICLE_VERSIONS: 'gov_article_versions',
   VERSIONS_INITIALIZED: 'gov_versions_initialized',
+  IMPORT_DRAFTS: 'gov_import_drafts',
   INITIALIZED: 'gov_initialized',
 }
 

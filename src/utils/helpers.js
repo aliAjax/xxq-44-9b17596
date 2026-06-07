@@ -20,6 +20,10 @@ export const OPERATION_ACTIONS = {
   RELEASE_TASK: 'release_task',
   FORCE_RELEASE_TASK: 'force_release_task',
   SCHEDULE_PUBLISH_DATE: 'schedule_publish_date',
+  SAVE_IMPORT_DRAFT: 'save_import_draft',
+  LOAD_IMPORT_DRAFT: 'load_import_draft',
+  DELETE_IMPORT_DRAFT: 'delete_import_draft',
+  PARTIAL_BATCH_IMPORT: 'partial_batch_import',
 }
 
 export const VERSION_TYPES = {
@@ -89,6 +93,10 @@ export const getActionText = (action) => {
     [OPERATION_ACTIONS.RELEASE_TASK]: '释放任务',
     [OPERATION_ACTIONS.FORCE_RELEASE_TASK]: '强制释放任务',
     [OPERATION_ACTIONS.SCHEDULE_PUBLISH_DATE]: '调整发布日期',
+    [OPERATION_ACTIONS.SAVE_IMPORT_DRAFT]: '保存导入草稿',
+    [OPERATION_ACTIONS.LOAD_IMPORT_DRAFT]: '加载导入草稿',
+    [OPERATION_ACTIONS.DELETE_IMPORT_DRAFT]: '删除导入草稿',
+    [OPERATION_ACTIONS.PARTIAL_BATCH_IMPORT]: '批量部分导入',
   }
   return actionMap[action] || action
 }
@@ -112,6 +120,10 @@ export const getActionColor = (action) => {
     [OPERATION_ACTIONS.RELEASE_TASK]: 'bg-amber-100 text-amber-700',
     [OPERATION_ACTIONS.FORCE_RELEASE_TASK]: 'bg-rose-100 text-rose-700',
     [OPERATION_ACTIONS.SCHEDULE_PUBLISH_DATE]: 'bg-amber-100 text-amber-700',
+    [OPERATION_ACTIONS.SAVE_IMPORT_DRAFT]: 'bg-indigo-100 text-indigo-700',
+    [OPERATION_ACTIONS.LOAD_IMPORT_DRAFT]: 'bg-sky-100 text-sky-700',
+    [OPERATION_ACTIONS.DELETE_IMPORT_DRAFT]: 'bg-rose-100 text-rose-700',
+    [OPERATION_ACTIONS.PARTIAL_BATCH_IMPORT]: 'bg-violet-100 text-violet-700',
   }
   return colorMap[action] || 'bg-gray-100 text-gray-700'
 }

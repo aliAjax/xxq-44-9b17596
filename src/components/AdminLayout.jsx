@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2, BarChart3, Trash2, PieChart, Calendar, ClipboardList, Upload, GitBranch } from 'lucide-react'
+import { LayoutDashboard, FileText, CheckSquare, LogOut, User, Building2, BarChart3, Trash2, PieChart, Calendar, ClipboardList, Upload, GitBranch, FileArchive } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import { getRoleText } from '../utils/helpers'
 
@@ -25,6 +25,12 @@ export default function AdminLayout({ children }) {
       path: '/admin/batch-import',
       label: '批量导入',
       icon: Upload,
+      roles: ['editor'],
+    },
+    {
+      path: '/admin/import-drafts',
+      label: '导入草稿箱',
+      icon: FileArchive,
       roles: ['editor'],
     },
     {
