@@ -32,13 +32,90 @@ export const users = [
 ]
 
 export const reviewFlowConfigs = [
-  { id: '1', categoryCode: 'policy', categoryName: '政策法规', requireTwoLevel: false },
-  { id: '2', categoryCode: 'notice', categoryName: '通知公告', requireTwoLevel: false },
-  { id: '3', categoryCode: 'plan', categoryName: '规划计划', requireTwoLevel: false },
-  { id: '4', categoryCode: 'finance', categoryName: '财政信息', requireTwoLevel: true },
-  { id: '5', categoryCode: 'personnel', categoryName: '人事信息', requireTwoLevel: false },
-  { id: '6', categoryCode: 'emergency', categoryName: '应急管理', requireTwoLevel: false },
-  { id: '7', categoryCode: 'keyarea', categoryName: '重点领域', requireTwoLevel: true },
+  {
+    id: '1',
+    categoryCode: 'policy',
+    categoryName: '政策法规',
+    requireTwoLevel: false,
+    validationRules: {
+      requireAttachment: false,
+      minContentLength: 0,
+      requirePublishDate: false,
+      forbidDuplicateTitle: false,
+    },
+  },
+  {
+    id: '2',
+    categoryCode: 'notice',
+    categoryName: '通知公告',
+    requireTwoLevel: false,
+    validationRules: {
+      requireAttachment: false,
+      minContentLength: 0,
+      requirePublishDate: false,
+      forbidDuplicateTitle: false,
+    },
+  },
+  {
+    id: '3',
+    categoryCode: 'plan',
+    categoryName: '规划计划',
+    requireTwoLevel: false,
+    validationRules: {
+      requireAttachment: false,
+      minContentLength: 0,
+      requirePublishDate: false,
+      forbidDuplicateTitle: false,
+    },
+  },
+  {
+    id: '4',
+    categoryCode: 'finance',
+    categoryName: '财政信息',
+    requireTwoLevel: true,
+    validationRules: {
+      requireAttachment: false,
+      minContentLength: 0,
+      requirePublishDate: false,
+      forbidDuplicateTitle: false,
+    },
+  },
+  {
+    id: '5',
+    categoryCode: 'personnel',
+    categoryName: '人事信息',
+    requireTwoLevel: false,
+    validationRules: {
+      requireAttachment: false,
+      minContentLength: 0,
+      requirePublishDate: false,
+      forbidDuplicateTitle: false,
+    },
+  },
+  {
+    id: '6',
+    categoryCode: 'emergency',
+    categoryName: '应急管理',
+    requireTwoLevel: false,
+    validationRules: {
+      requireAttachment: false,
+      minContentLength: 0,
+      requirePublishDate: false,
+      forbidDuplicateTitle: false,
+    },
+  },
+  {
+    id: '7',
+    categoryCode: 'keyarea',
+    categoryName: '重点领域',
+    requireTwoLevel: true,
+    validationRules: {
+      requireAttachment: false,
+      minContentLength: 0,
+      requirePublishDate: false,
+      forbidDuplicateTitle: false,
+    },
+  },
 ]
 
 const now = new Date()

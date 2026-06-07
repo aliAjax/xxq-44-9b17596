@@ -374,3 +374,97 @@ export const canUserClaimArticle = (article, userId, _userRole, isArticlePending
   }
   return true
 }
+
+export const DEFAULT_VALIDATION_RULES = {
+  requireAttachment: false,
+  minContentLength: 0,
+  requirePublishDate: false,
+  forbidDuplicateTitle: false,
+}
+
+export const getValidationRules = (reviewFlowConfig) => {
+  if (!reviewFlowConfig || !reviewFlowConfig.validationRules) {
+    return { ...DEFAULT_VALIDATION_RULES }
+  }
+  return {
+    ...DEFAULT_VALIDATION_RULES,
+    ...reviewFlowConfig.validationRules,
+  }
+}
+
+export const getContentTextLength = (htmlContent) => {
+  if (!htmlContent) return 0
+  const text = stripHtml(htmlContent)
+  return text.trim().length
+}
+
+export const validateArticle = (articleData, rules, allArticles = [], currentArticleId = null) => {
+  const errors = []
+  const warnings = []
+
+  const { title, category, department, content, publishDate, attachmentName, attachmentUrl } = articleData
+
+  if (!title || !title.trim()) {
+    errors.push('标题不能为空')
+  }
+
+  if (!category) {
+    errors.push('请选择公开类别')
+  }
+
+  if (!department) {
+    errors.push('请选择发布科室')
+  }
+
+  if (!content || !stripHtml(content).trim()) {
+    errors.push('正文内容不能为空')
+  }
+
+  if (rules.requireAttachment) {
+    const hasAttachment = (attachmentName && attachmentName.trim()) || (attachmentUrl && attachmentUrl.trim())
+    if (!hasAttachment) {
+      errors.push('该分类必须上传附件')
+    }
+  }
+
+  if (rules.minContentLength > 0) {
+    const contentLength = getContentTextLength(content)
+    if (content && contentLength > 0 && contentLength < rules.minContentLength) {
+      errors.push(`正文内容字数不能少于 ${rules.minContentLength} 字（当前 ${contentLength} 字）`)
+    }
+  }
+
+  if (rules.requirePublishDate && !publishDate) {
+    errors.push('该分类发布日期为必填项')
+  }
+
+  if (rules.forbidDuplicateTitle && title && title.trim()) {
+    const trimmedTitle = title.trim()
+    const isDuplicate = allArticles.some((a) => {
+      if (currentArticleId && a.id === currentArticleId) return false
+      if (a.deleted) return false
+      return a.title && a.title.trim() === trimmedTitle
+    })
+    if (isDuplicate) {
+      errors.push('该分类禁止重复标题，当前标题已存在')
+    }
+  }
+
+  if (!rules.forbidDuplicateTitle && title && title.trim()) {
+    const trimmedTitle = title.trim()
+    const isDuplicate = allArticles.some((a) => {
+      if (currentArticleId && a.id === currentArticleId) return false
+      if (a.deleted) return false
+      return a.title && a.title.trim() === trimmedTitle
+    })
+    if (isDuplicate) {
+      warnings.push('标题与现有文章重复')
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings,
+  }
+}

@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Edit2, Trash2, Send, Eye, Upload, Clock, X, Building, Calendar, Paperclip, User } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, Send, Eye, Upload, Clock, X, Building, Calendar, Paperclip, User, XCircle } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
 import VersionHistoryModal from '../components/VersionHistoryModal'
 import { useApp } from '../context/useApp'
+import { getValidationRules, validateArticle } from '../utils/helpers'
 
 const PAGE_SIZE = 10
 
@@ -20,6 +21,9 @@ export default function ArticleList() {
   const [versionArticle, setVersionArticle] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [detailArticle, setDetailArticle] = useState(null)
+  const [showSubmitErrorModal, setShowSubmitErrorModal] = useState(false)
+  const [submitErrorArticle, setSubmitErrorArticle] = useState(null)
+  const [submitErrors, setSubmitErrors] = useState([])
 
   const filteredArticles = useMemo(() => {
     let result = state.articles.filter((a) => !a.deleted)
@@ -51,9 +55,34 @@ export default function ArticleList() {
     }
   }
 
-  const handleSubmitReview = (id) => {
+  const handleSubmitReview = (article) => {
+    const config = state.reviewFlowConfigs.find((c) => c.categoryCode === article.category)
+    const rules = getValidationRules(config)
+
+    const result = validateArticle(
+      {
+        title: article.title,
+        category: article.category,
+        department: article.department,
+        content: article.content,
+        publishDate: article.publishDate,
+        attachmentName: article.attachmentName,
+        attachmentUrl: article.attachmentUrl,
+      },
+      rules,
+      state.articles,
+      article.id
+    )
+
+    if (!result.isValid) {
+      setSubmitErrorArticle(article)
+      setSubmitErrors(result.errors)
+      setShowSubmitErrorModal(true)
+      return
+    }
+
     if (window.confirm('确定要提交审核吗？')) {
-      updateArticle(id, { status: 'pending' })
+      updateArticle(article.id, { status: 'pending' })
     }
   }
 
@@ -215,7 +244,7 @@ export default function ArticleList() {
                         )}
                         {article.status === 'draft' && (
                           <button
-                            onClick={() => handleSubmitReview(article.id)}
+                            onClick={() => handleSubmitReview(article)}
                             className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
                             title="提交审核"
                           >
@@ -365,7 +394,7 @@ export default function ArticleList() {
                   <button
                     onClick={() => {
                       setShowDetailModal(false)
-                      handleSubmitReview(detailArticle.id)
+                      handleSubmitReview(detailArticle)
                     }}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
                   >
@@ -374,6 +403,76 @@ export default function ArticleList() {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSubmitErrorModal && submitErrorArticle && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md fade-in">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">无法提交审核</h3>
+              <button
+                onClick={() => {
+                  setShowSubmitErrorModal(false)
+                  setSubmitErrorArticle(null)
+                  setSubmitErrors([])
+                }}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <XCircle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-800 mb-1">
+                    「{submitErrorArticle.title}」
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    该文章不符合分类校验规则，请修正后再提交
+                  </p>
+                </div>
+              </div>
+              <div className="bg-red-50 border border-red-100 rounded-lg p-3">
+                <p className="text-sm font-medium text-red-800 mb-2">错误列表：</p>
+                <ul className="space-y-1">
+                  {submitErrors.map((err, idx) => (
+                    <li key={idx} className="text-sm text-red-700 flex items-start gap-1.5">
+                      <XCircle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
+                      {err}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
+              <button
+                onClick={() => {
+                  setShowSubmitErrorModal(false)
+                  setSubmitErrorArticle(null)
+                  setSubmitErrors([])
+                }}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors text-sm"
+              >
+                我知道了
+              </button>
+              <button
+                onClick={() => {
+                  setShowSubmitErrorModal(false)
+                  setSubmitErrorArticle(null)
+                  setSubmitErrors([])
+                  navigate(`/admin/articles/${submitErrorArticle.id}/edit`)
+                }}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm flex items-center gap-2"
+              >
+                <Edit2 className="w-4 h-4" />
+                去编辑
+              </button>
             </div>
           </div>
         </div>

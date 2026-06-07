@@ -8,6 +8,9 @@ import {
   OPERATION_ACTIONS,
   VERSION_TYPES,
   getVersionTypeText,
+  DEFAULT_VALIDATION_RULES,
+  getValidationRules,
+  validateArticle,
 } from '../utils/helpers'
 import { AppContext } from './useApp'
 
@@ -272,13 +275,31 @@ export function AppProvider({ children }) {
     if (!categoryList || categoryList.length === 0) return configs || []
     const existingConfigs = configs || []
     const existingCodes = new Set(existingConfigs.map((c) => c.categoryCode))
-    const newConfigs = [...existingConfigs]
     const defaultConfigMap = new Map(
       reviewFlowConfigs.map((config) => [config.categoryCode, config])
     )
     let maxId = existingConfigs.length > 0
       ? Math.max(...existingConfigs.map((c) => parseInt(c.id) || 0))
       : 0
+
+    const migratedConfigs = existingConfigs.map((config) => {
+      if (!config.validationRules) {
+        return {
+          ...config,
+          validationRules: { ...DEFAULT_VALIDATION_RULES },
+        }
+      }
+      const mergedRules = {
+        ...DEFAULT_VALIDATION_RULES,
+        ...config.validationRules,
+      }
+      return {
+        ...config,
+        validationRules: mergedRules,
+      }
+    })
+
+    const newConfigs = [...migratedConfigs]
 
     categoryList.forEach((cat) => {
       if (!existingCodes.has(cat.code)) {
@@ -289,6 +310,9 @@ export function AppProvider({ children }) {
           categoryCode: cat.code,
           categoryName: cat.name,
           requireTwoLevel: defaultConfig?.requireTwoLevel || false,
+          validationRules: defaultConfig?.validationRules
+            ? { ...defaultConfig.validationRules }
+            : { ...DEFAULT_VALIDATION_RULES },
         })
       }
     })
@@ -978,6 +1002,16 @@ export function AppProvider({ children }) {
     return state.reviewFlowConfigs.find((c) => c.categoryCode === categoryCode) || null
   }
 
+  const getValidationRulesByCategory = (categoryCode) => {
+    const config = getReviewFlowConfig(categoryCode)
+    return getValidationRules(config)
+  }
+
+  const validateArticleByCategory = (articleData, categoryCode, currentArticleId = null) => {
+    const rules = getValidationRulesByCategory(categoryCode)
+    return validateArticle(articleData, rules, state.articles, currentArticleId)
+  }
+
   const getArticleById = (id) => {
     return state.articles.find((a) => a.id === id)
   }
@@ -1308,6 +1342,8 @@ export function AppProvider({ children }) {
         isTwoLevelReview,
         updateReviewFlowConfig,
         getReviewFlowConfig,
+        getValidationRulesByCategory,
+        validateArticleByCategory,
         getArticleVersions,
         getArticleVersionById,
         compareVersions,

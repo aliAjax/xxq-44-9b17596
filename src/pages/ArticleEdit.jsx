@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -13,14 +13,18 @@ import {
   AlignCenter,
   AlignRight,
   Paperclip,
+  AlertTriangle,
+  XCircle,
+  Info,
 } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import { useApp } from '../context/useApp'
+import { getValidationRules, getContentTextLength } from '../utils/helpers'
 
 export default function ArticleEdit() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { state, addArticle, updateArticle, getArticleById } = useApp()
+  const { state, addArticle, updateArticle, getArticleById, getReviewFlowConfig } = useApp()
   const editorRef = useRef(null)
   const isEdit = !!id
 
@@ -35,6 +39,19 @@ export default function ArticleEdit() {
   })
 
   const [errors, setErrors] = useState({})
+  const [warnings, setWarnings] = useState([])
+  const [showWarningModal, setShowWarningModal] = useState(false)
+  const [pendingAction, setPendingAction] = useState(null)
+
+  const currentRules = useMemo(() => {
+    if (!formData.category) return null
+    const config = getReviewFlowConfig(formData.category)
+    return getValidationRules(config)
+  }, [formData.category, getReviewFlowConfig])
+
+  const contentLength = useMemo(() => {
+    return getContentTextLength(formData.content)
+  }, [formData.content])
 
   useEffect(() => {
     if (isEdit) {
@@ -79,7 +96,7 @@ export default function ArticleEdit() {
     handleContentInput()
   }
 
-  const validate = () => {
+  const validateBasic = () => {
     const newErrors = {}
     if (!formData.title.trim()) newErrors.title = '请输入标题'
     if (!formData.category) newErrors.category = '请选择公开类别'
@@ -89,8 +106,107 @@ export default function ArticleEdit() {
     return Object.keys(newErrors).length === 0
   }
 
+  const validateWithRules = (isSubmit = false) => {
+    const basicValid = validateBasic()
+    if (!basicValid) {
+      setWarnings([])
+      return { isValid: false, errors, warnings: [] }
+    }
+
+    if (!currentRules) {
+      setWarnings([])
+      return { isValid: true, errors: {}, warnings: [] }
+    }
+
+    const ruleErrors = {}
+    const ruleWarnings = []
+
+    if (currentRules.requireAttachment) {
+      const hasAttachment = (formData.attachmentName && formData.attachmentName.trim()) ||
+        (formData.attachmentUrl && formData.attachmentUrl.trim())
+      if (!hasAttachment) {
+        if (isSubmit) {
+          ruleErrors.attachment = '该分类必须上传附件'
+        } else {
+          ruleWarnings.push('该分类要求必须上传附件')
+        }
+      }
+    }
+
+    if (currentRules.minContentLength > 0) {
+      if (contentLength > 0 && contentLength < currentRules.minContentLength) {
+        if (isSubmit) {
+          ruleErrors.content = `正文内容字数不能少于 ${currentRules.minContentLength} 字（当前 ${contentLength} 字）`
+        } else {
+          ruleWarnings.push(`正文内容字数不足 ${currentRules.minContentLength} 字（当前 ${contentLength} 字）`)
+        }
+      }
+    }
+
+    if (currentRules.requirePublishDate && !formData.publishDate) {
+      if (isSubmit) {
+        ruleErrors.publishDate = '该分类发布日期为必填项'
+      } else {
+        ruleWarnings.push('该分类要求发布日期为必填项')
+      }
+    }
+
+    if (currentRules.forbidDuplicateTitle && formData.title.trim()) {
+      const trimmedTitle = formData.title.trim()
+      const isDuplicate = state.articles.some((a) => {
+        if (isEdit && a.id === id) return false
+        if (a.deleted) return false
+        return a.title && a.title.trim() === trimmedTitle
+      })
+      if (isDuplicate) {
+        if (isSubmit) {
+          ruleErrors.title = '该分类禁止重复标题，当前标题已存在'
+        } else {
+          ruleWarnings.push('标题与现有文章重复，该分类禁止重复标题')
+        }
+      }
+    }
+
+    if (!currentRules.forbidDuplicateTitle && formData.title.trim()) {
+      const trimmedTitle = formData.title.trim()
+      const isDuplicate = state.articles.some((a) => {
+        if (isEdit && a.id === id) return false
+        if (a.deleted) return false
+        return a.title && a.title.trim() === trimmedTitle
+      })
+      if (isDuplicate) {
+        ruleWarnings.push('标题与现有文章重复')
+      }
+    }
+
+    const allErrors = { ...errors, ...ruleErrors }
+    setErrors(allErrors)
+    setWarnings(ruleWarnings)
+
+    return {
+      isValid: Object.keys(allErrors).length === 0 || !isSubmit,
+      errors: allErrors,
+      warnings: ruleWarnings,
+    }
+  }
+
   const handleSaveDraft = () => {
-    if (!validate()) return
+    if (!validateBasic()) return
+
+    const result = validateWithRules(false)
+
+    if (result.warnings.length > 0) {
+      setPendingAction('draft')
+      setShowWarningModal(true)
+      return
+    }
+
+    doSaveDraft()
+  }
+
+  const doSaveDraft = () => {
+    setShowWarningModal(false)
+    setPendingAction(null)
 
     if (isEdit) {
       updateArticle(id, { ...formData, status: 'draft' })
@@ -101,7 +217,10 @@ export default function ArticleEdit() {
   }
 
   const handleSubmitReview = () => {
-    if (!validate()) return
+    const result = validateWithRules(true)
+    if (!result.isValid) {
+      return
+    }
 
     if (isEdit) {
       updateArticle(id, { ...formData, status: 'pending' })
@@ -109,6 +228,15 @@ export default function ArticleEdit() {
       addArticle({ ...formData, status: 'pending' })
     }
     navigate('/admin/articles')
+  }
+
+  const confirmWithWarnings = () => {
+    if (pendingAction === 'draft') {
+      doSaveDraft()
+    } else if (pendingAction === 'submit') {
+      setShowWarningModal(false)
+      setPendingAction(null)
+    }
   }
 
   return (
@@ -129,6 +257,26 @@ export default function ArticleEdit() {
         </p>
       </div>
 
+      {currentRules && (currentRules.requireAttachment || currentRules.minContentLength > 0 || currentRules.requirePublishDate || currentRules.forbidDuplicateTitle) && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-start gap-2">
+            <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-700">
+              <p className="font-medium">该分类校验规则</p>
+              <div className="mt-1 text-amber-600 space-y-0.5">
+                {currentRules.requireAttachment && <p>· 必须上传附件</p>}
+                {currentRules.minContentLength > 0 && <p>· 正文最少 {currentRules.minContentLength} 字</p>}
+                {currentRules.requirePublishDate && <p>· 发布日期必填</p>}
+                {currentRules.forbidDuplicateTitle && <p>· 禁止重复标题</p>}
+              </div>
+              <p className="mt-1 text-xs text-amber-500">
+                保存草稿时仅提示风险，提交审核时按规则严格校验
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-sm">
         <div className="p-6">
           <div className="grid grid-cols-2 gap-6 mb-6">
@@ -147,7 +295,10 @@ export default function ArticleEdit() {
                 }`}
               />
               {errors.title && (
-                <p className="text-red-500 text-xs mt-1">{errors.title}</p>
+                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.title}
+                </p>
               )}
             </div>
 
@@ -171,7 +322,10 @@ export default function ArticleEdit() {
                 ))}
               </select>
               {errors.category && (
-                <p className="text-red-500 text-xs mt-1">{errors.category}</p>
+                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.category}
+                </p>
               )}
             </div>
 
@@ -195,29 +349,44 @@ export default function ArticleEdit() {
                 ))}
               </select>
               {errors.department && (
-                <p className="text-red-500 text-xs mt-1">{errors.department}</p>
+                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.department}
+                </p>
               )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 发布日期
+                {currentRules?.requirePublishDate && <span className="text-red-500"> *</span>}
               </label>
               <input
                 type="date"
                 name="publishDate"
                 value={formData.publishDate}
                 onChange={handleInputChange}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all ${
+                  errors.publishDate ? 'border-red-400 focus:ring-red-200' : 'border-gray-300'
+                }`}
               />
+              {errors.publishDate && (
+                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.publishDate}
+                </p>
+              )}
               <p className="text-gray-400 text-xs mt-1">
-                可选，审核通过后自动填入发布日期
+                {currentRules?.requirePublishDate
+                  ? '该分类发布日期为必填项'
+                  : '可选，审核通过后自动填入发布日期'}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 附件
+                {currentRules?.requireAttachment && <span className="text-red-500"> *</span>}
               </label>
               <div className="flex gap-2">
                 <div className="flex-1 relative">
@@ -228,7 +397,9 @@ export default function ArticleEdit() {
                     value={formData.attachmentName}
                     onChange={handleInputChange}
                     placeholder="附件名称"
-                    className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-sm"
+                    className={`w-full pl-9 pr-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-sm ${
+                      errors.attachment ? 'border-red-400 focus:ring-red-200' : 'border-gray-300'
+                    }`}
                   />
                 </div>
                 <input
@@ -237,16 +408,34 @@ export default function ArticleEdit() {
                   value={formData.attachmentUrl}
                   onChange={handleInputChange}
                   placeholder="附件链接URL"
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-sm"
+                  className={`flex-1 px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-sm ${
+                    errors.attachment ? 'border-red-400 focus:ring-red-200' : 'border-gray-300'
+                  }`}
                 />
               </div>
+              {errors.attachment && (
+                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.attachment}
+                </p>
+              )}
             </div>
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              正文内容 <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                正文内容 <span className="text-red-500">*</span>
+              </label>
+              <span className={`text-xs ${
+                currentRules?.minContentLength > 0 && contentLength < currentRules.minContentLength
+                  ? 'text-amber-600'
+                  : 'text-gray-400'
+              }`}>
+                {contentLength} 字
+                {currentRules?.minContentLength > 0 && ` / 最少 ${currentRules.minContentLength} 字`}
+              </span>
+            </div>
 
             <div className="border border-gray-300 rounded-lg overflow-hidden">
               <div className="flex items-center gap-1 p-2 bg-gray-50 border-b border-gray-200">
@@ -326,9 +515,28 @@ export default function ArticleEdit() {
               />
             </div>
             {errors.content && (
-              <p className="text-red-500 text-xs mt-1">{errors.content}</p>
+              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                <XCircle className="w-3 h-3" />
+                {errors.content}
+              </p>
             )}
           </div>
+
+          {warnings.length > 0 && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800">风险提示</p>
+                  <ul className="mt-1 text-sm text-amber-700 space-y-0.5">
+                    {warnings.map((warn, idx) => (
+                      <li key={idx}>· {warn}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
@@ -354,6 +562,60 @@ export default function ArticleEdit() {
           </button>
         </div>
       </div>
+
+      {showWarningModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md fade-in">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900">风险提示</h3>
+            </div>
+            <div className="p-6">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-800 mb-2">
+                    以下内容可能不符合该分类的校验规则：
+                  </p>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    {warnings.map((warn, idx) => (
+                      <li key={idx} className="flex items-start gap-1">
+                        <span className="text-amber-500">·</span>
+                        {warn}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-gray-500 mt-3">
+                    {pendingAction === 'draft'
+                      ? '保存草稿仅作提示，不影响保存。提交审核时将按规则严格校验。'
+                      : '提交审核将被阻断，请修改后再提交。'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
+              <button
+                onClick={() => {
+                  setShowWarningModal(false)
+                  setPendingAction(null)
+                }}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors text-sm"
+              >
+                {pendingAction === 'draft' ? '继续编辑' : '我知道了'}
+              </button>
+              {pendingAction === 'draft' && (
+                <button
+                  onClick={confirmWithWarnings}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm flex items-center gap-2"
+                >
+                  仍保存草稿
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   )
 }

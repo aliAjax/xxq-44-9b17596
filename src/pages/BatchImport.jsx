@@ -19,6 +19,7 @@ import {
 import AdminLayout from '../components/AdminLayout'
 import { useApp } from '../context/useApp'
 import { storage, STORAGE_KEYS } from '../utils/storage'
+import { getValidationRules, getContentTextLength } from '../utils/helpers'
 
 const SAMPLE_CSV = `标题,类别,发布科室,发布日期,正文,附件名称,附件链接
 关于开展2024年度政务公开培训的通知,notice,办公室,2024-06-01,"各科室、各下属单位：
@@ -87,11 +88,11 @@ function parseCSV(text) {
   return result
 }
 
-function validateRow(rowData, categories, departments, existingTitles, allRows) {
+function validateRow(rowData, categories, departments, existingTitles, allRows, reviewFlowConfigs) {
   const errors = []
   const warnings = []
 
-  const { title, categoryCode, department, publishDate, content } = rowData
+  const { title, categoryCode, department, publishDate, content, attachmentName, attachmentUrl } = rowData
 
   if (!title || !title.trim()) {
     errors.push('标题不能为空')
@@ -101,8 +102,9 @@ function validateRow(rowData, categories, departments, existingTitles, allRows) 
     errors.push('正文不能为空')
   }
 
+  let category = null
   if (categoryCode && categoryCode.trim()) {
-    const category = categories.find((c) => c.code === categoryCode.trim())
+    category = categories.find((c) => c.code === categoryCode.trim())
     if (!category) {
       errors.push(`类别代码"${categoryCode}"无效`)
     }
@@ -126,8 +128,51 @@ function validateRow(rowData, categories, departments, existingTitles, allRows) 
     }
   }
 
+  if (category && reviewFlowConfigs) {
+    const config = reviewFlowConfigs.find((c) => c.categoryCode === category.code)
+    const rules = getValidationRules(config)
+
+    if (rules.requireAttachment) {
+      const hasAttachment = (attachmentName && attachmentName.trim()) ||
+        (attachmentUrl && attachmentUrl.trim())
+      if (!hasAttachment) {
+        warnings.push(`该分类要求必须上传附件`)
+      }
+    }
+
+    if (rules.minContentLength > 0) {
+      const contentLength = getContentTextLength(content)
+      if (content && contentLength > 0 && contentLength < rules.minContentLength) {
+        warnings.push(`正文内容字数不足 ${rules.minContentLength} 字（当前 ${contentLength} 字）`)
+      }
+    }
+
+    if (rules.requirePublishDate && !publishDate) {
+      warnings.push('该分类要求发布日期为必填项')
+    }
+
+    if (rules.forbidDuplicateTitle && title && title.trim()) {
+      const trimmedTitle = title.trim()
+      if (existingTitles.has(trimmedTitle)) {
+        warnings.push('该分类禁止重复标题，当前标题与现有文章重复')
+      }
+      if (allRows) {
+        const sameTitleCount = allRows.filter(
+          (r) => r.title && r.title.trim() === trimmedTitle
+        ).length
+        if (sameTitleCount > 1) {
+          if (!warnings.includes('该分类禁止重复标题，导入数据内存在重复标题')) {
+            warnings.push('该分类禁止重复标题，导入数据内存在重复标题')
+          }
+        }
+      }
+    }
+  }
+
   if (title && title.trim() && existingTitles.has(title.trim())) {
-    warnings.push('标题与现有文章重复')
+    if (!warnings.some((w) => w.includes('标题与现有文章重复') || w.includes('禁止重复标题'))) {
+      warnings.push('标题与现有文章重复')
+    }
   }
 
   if (title && title.trim() && allRows) {
@@ -135,7 +180,7 @@ function validateRow(rowData, categories, departments, existingTitles, allRows) 
       (r) => r.title && r.title.trim() === title.trim()
     ).length
     if (sameTitleCount > 1) {
-      if (!warnings.includes('导入数据内存在重复标题')) {
+      if (!warnings.some((w) => w.includes('导入数据内存在重复标题'))) {
         warnings.push('导入数据内存在重复标题')
       }
     }
@@ -249,7 +294,7 @@ export default function BatchImport() {
     }))
 
     const validatedRows = initialRows.map((row) =>
-      validateRow(row, state.categories, state.departments, existingTitles, initialRows)
+      validateRow(row, state.categories, state.departments, existingTitles, initialRows, state.reviewFlowConfigs)
     )
 
     setParsedData(validatedRows)
@@ -260,7 +305,7 @@ export default function BatchImport() {
 
   const revalidateAllRows = (rows) => {
     return rows.map((row) =>
-      validateRow(row, state.categories, state.departments, existingTitles, rows)
+      validateRow(row, state.categories, state.departments, existingTitles, rows, state.reviewFlowConfigs)
     )
   }
 
