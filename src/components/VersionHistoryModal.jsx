@@ -13,6 +13,8 @@ import {
   ArrowRight,
   Link,
   AlertCircle,
+  MessageSquare,
+  AlertTriangle,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import { getVersionTypeText, getVersionTypeColor, ROLLBACK_STATUS } from '../utils/helpers'
@@ -234,6 +236,30 @@ export default function VersionHistoryModal({ article, onClose, showRestore = tr
                       {version.attachmentUrl}
                     </span>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {version.rectificationRemark && (
+            <div className="flex items-start gap-3">
+              <MessageSquare className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <div className="text-xs text-gray-500 mb-1">整改说明</div>
+                <div className="text-sm text-amber-800 bg-amber-50 p-2.5 rounded-md border border-amber-100 whitespace-pre-wrap">
+                  {version.rectificationRemark}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {version.rejectTemplateTitle && (
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <div className="text-xs text-gray-500 mb-1">退回模板</div>
+                <div className="text-sm text-red-700 bg-red-50 px-2.5 py-1.5 rounded-md border border-red-100 inline-block">
+                  {version.rejectTemplateTitle}
                 </div>
               </div>
             </div>

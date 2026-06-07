@@ -16,10 +16,23 @@ import {
   AlertTriangle,
   XCircle,
   Info,
+  History,
+  Clock,
+  MessageSquare,
+  FileText,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import { useApp } from '../context/useApp'
-import { getValidationRules, getContentTextLength, getActiveCategories, getActiveDepartments } from '../utils/helpers'
+import {
+  getValidationRules,
+  getContentTextLength,
+  getActiveCategories,
+  getActiveDepartments,
+  getReviewStageText,
+  getReviewStageColor,
+} from '../utils/helpers'
 
 export default function ArticleEdit() {
   const { id } = useParams()
@@ -42,6 +55,9 @@ export default function ArticleEdit() {
   const [warnings, setWarnings] = useState([])
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [pendingAction, setPendingAction] = useState(null)
+  const [rectificationRemark, setRectificationRemark] = useState('')
+  const [showReviewHistory, setShowReviewHistory] = useState(false)
+  const [showRejectReason, setShowRejectReason] = useState(true)
 
   const currentRules = useMemo(() => {
     if (!formData.category) return null
@@ -74,6 +90,44 @@ export default function ArticleEdit() {
     }
     return activeDepts
   }, [state.departments, formData.department, isEdit])
+
+  const currentArticle = useMemo(() => {
+    if (!isEdit) return null
+    return getArticleById(id) || null
+  }, [isEdit, id, getArticleById])
+
+  const isRejectedArticle = useMemo(() => {
+    return currentArticle && currentArticle.status === 'rejected'
+  }, [currentArticle])
+
+  const lastRejectInfo = useMemo(() => {
+    if (!currentArticle || !currentArticle.reviewHistory || currentArticle.reviewHistory.length === 0) {
+      return null
+    }
+    const rejectRecords = currentArticle.reviewHistory.filter((h) => h.action === 'reject')
+    if (rejectRecords.length === 0) return null
+    return rejectRecords[rejectRecords.length - 1]
+  }, [currentArticle])
+
+  const usedRejectTemplates = useMemo(() => {
+    if (!currentArticle || !currentArticle.reviewHistory) return []
+    const templates = []
+    const seenIds = new Set()
+    currentArticle.reviewHistory
+      .filter((h) => h.action === 'reject' && h.rejectTemplateId)
+      .reverse()
+      .forEach((h) => {
+        if (!seenIds.has(h.rejectTemplateId)) {
+          seenIds.add(h.rejectTemplateId)
+          templates.push({
+            id: h.rejectTemplateId,
+            title: h.rejectTemplateTitle,
+            content: h.comment,
+          })
+        }
+      })
+    return templates
+  }, [currentArticle])
 
   useEffect(() => {
     if (isEdit) {
@@ -262,8 +316,15 @@ export default function ArticleEdit() {
       return
     }
 
+    if (isRejectedArticle && !rectificationRemark.trim()) {
+      alert('请填写整改说明后再重新提交审核')
+      return
+    }
+
     if (isEdit) {
-      updateArticle(id, { ...formData, status: 'pending' })
+      updateArticle(id, { ...formData, status: 'pending' }, {
+        rectificationRemark: rectificationRemark.trim(),
+      })
     } else {
       addArticle({ ...formData, status: 'pending' })
     }
@@ -314,6 +375,216 @@ export default function ArticleEdit() {
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {isRejectedArticle && (
+        <div className="bg-white rounded-lg shadow-sm mb-6 overflow-hidden">
+          <div
+            className="px-6 py-4 bg-red-50 border-b border-red-100 flex items-center justify-between cursor-pointer hover:bg-red-50/80 transition-colors"
+            onClick={() => setShowRejectReason(!showRejectReason)}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-red-900 flex items-center gap-2">
+                  退回原因
+                  {currentArticle?.rectificationCount > 0 && (
+                    <span className="text-xs font-normal bg-red-200 text-red-700 px-2 py-0.5 rounded-full">
+                      第 {currentArticle.rectificationCount + 1} 次退回
+                    </span>
+                  )}
+                </h3>
+                <p className="text-sm text-red-600 mt-0.5">
+                  请根据退回意见修改后重新提交，记得填写整改说明
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              {lastRejectInfo?.rejectTemplateTitle && (
+                <span className="text-xs bg-red-100 text-red-700 px-2.5 py-1 rounded-md font-medium">
+                  {lastRejectInfo.rejectTemplateTitle}
+                </span>
+              )}
+              {showRejectReason ? (
+                <ChevronUp className="w-5 h-5 text-red-500 flex-shrink-0" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-red-500 flex-shrink-0" />
+              )}
+            </div>
+          </div>
+          {showRejectReason && (
+            <div className="p-6">
+              {lastRejectInfo && (
+                <div className="bg-red-50/50 rounded-lg p-4 border border-red-100">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-red-800">
+                        {lastRejectInfo.reviewerName}
+                      </span>
+                      <span className="text-xs text-red-500">
+                        {lastRejectInfo.reviewedAt}
+                      </span>
+                    </div>
+                    {lastRejectInfo.reviewStage && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${getReviewStageColor(lastRejectInfo.reviewStage)}`}>
+                        {getReviewStageText(lastRejectInfo.reviewStage)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-red-900 leading-relaxed whitespace-pre-wrap">
+                    {lastRejectInfo.comment || '无退回原因说明'}
+                  </p>
+                </div>
+              )}
+
+              {usedRejectTemplates.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-gray-500" />
+                    使用过的退回模板
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {usedRejectTemplates.map((tpl) => (
+                      <span
+                        key={tpl.id}
+                        className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full cursor-help hover:bg-gray-200 transition-colors"
+                        title={tpl.content}
+                      >
+                        {tpl.title}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isRejectedArticle && (
+        <div className="bg-white rounded-lg shadow-sm mb-6 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-primary-600" />
+              整改说明 <span className="text-red-500 text-sm">*</span>
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">
+              请简要说明针对退回意见所做的修改内容
+            </p>
+          </div>
+          <div className="p-6">
+            <textarea
+              value={rectificationRemark}
+              onChange={(e) => setRectificationRemark(e.target.value)}
+              placeholder="例如：已补充完善第二段的具体数据；已调整第三部分的表述逻辑；已修正附件中的错别字..."
+              rows={4}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all resize-none"
+            />
+            <p className="text-xs text-gray-500 mt-2 text-right">
+              {rectificationRemark.length} / 1000 字
+            </p>
+          </div>
+        </div>
+      )}
+
+      {currentArticle && currentArticle.reviewHistory && currentArticle.reviewHistory.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm mb-6 overflow-hidden">
+          <div
+            className="px-6 py-4 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+            onClick={() => setShowReviewHistory(!showReviewHistory)}
+          >
+            <div className="flex items-center gap-2">
+              <History className="w-5 h-5 text-gray-500" />
+              <h3 className="text-base font-semibold text-gray-900">审核历史</h3>
+              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                {currentArticle.reviewHistory.length} 条记录
+              </span>
+            </div>
+            {showReviewHistory ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )}
+          </div>
+          {showReviewHistory && (
+            <div className="p-6">
+              <div className="space-y-4">
+                {[...currentArticle.reviewHistory].reverse().map((record, index) => (
+                  <div key={index} className="flex gap-4">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          record.action === 'pass'
+                            ? 'bg-green-100 text-green-600'
+                            : record.action === 'reject'
+                            ? 'bg-red-100 text-red-600'
+                            : 'bg-blue-100 text-blue-600'
+                        }`}
+                      >
+                        {record.action === 'pass' ? (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : record.action === 'reject' ? (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        ) : (
+                          <Clock className="w-4 h-4" />
+                        )}
+                      </div>
+                      {index < currentArticle.reviewHistory.length - 1 && (
+                        <div className="w-0.5 flex-1 bg-gray-200 mt-1" />
+                      )}
+                    </div>
+                    <div className="flex-1 pb-4">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-sm font-medium text-gray-900">
+                          {record.reviewerName}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          record.action === 'pass'
+                            ? 'bg-green-100 text-green-700'
+                            : record.action === 'reject'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {record.action === 'pass' ? '审核通过' : record.action === 'reject' ? '退回修改' : '提交审核'}
+                        </span>
+                        {record.reviewStage && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${getReviewStageColor(record.reviewStage)}`}>
+                            {getReviewStageText(record.reviewStage)}
+                          </span>
+                        )}
+                        {record.rejectTemplateTitle && (
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                            {record.rejectTemplateTitle}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-500 ml-auto">
+                          {record.reviewedAt || record.time}
+                        </span>
+                      </div>
+                      {record.comment && (
+                        <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+                          {record.comment}
+                        </p>
+                      )}
+                      {record.rectificationRemark && (
+                        <div className="mt-2 text-sm bg-amber-50 text-amber-800 p-2.5 rounded-md border border-amber-100">
+                          <span className="font-medium">整改说明：</span>
+                          {record.rectificationRemark}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

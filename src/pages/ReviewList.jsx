@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate, History, Clock, GitCompare, Hand, Unlock, RotateCcw, ArrowRight, FileText, FolderOpen, Building } from 'lucide-react'
+import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate, History, Clock, GitCompare, Hand, Unlock, RotateCcw, ArrowRight, FileText, FolderOpen, Building, AlertTriangle } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
@@ -940,14 +940,44 @@ export default function ReviewList() {
               {detailArticle.rejectReason && (
                 <div className="mt-6 p-4 bg-red-50 border border-red-100 rounded-lg">
                   <div className="flex items-start gap-2">
-                    <MessageSquare className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-sm font-medium text-red-800">退回原因</div>
-                      <div className="text-sm text-red-600 mt-1">
+                    <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium text-red-800">退回原因</span>
+                        {detailArticle.lastRejectTemplateTitle && (
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                            {detailArticle.lastRejectTemplateTitle}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-red-600 mt-1 whitespace-pre-wrap">
                         {detailArticle.rejectReason}
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {detailArticle.lastRectificationRemark && (
+                <div className="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <MessageSquare className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-amber-800 mb-1">整改说明</div>
+                      <div className="text-sm text-amber-700 whitespace-pre-wrap">
+                        {detailArticle.lastRectificationRemark}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {detailArticle.rectificationCount > 0 && (
+                <div className="mt-4 flex items-center gap-4 text-xs text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 bg-amber-400 rounded-full" />
+                    已退回整改 {detailArticle.rectificationCount} 次
+                  </span>
                 </div>
               )}
               {detailArticle.reviewHistory && detailArticle.reviewHistory.length > 0 && (
@@ -955,15 +985,30 @@ export default function ReviewList() {
                   <div className="flex items-center gap-2 mb-3">
                     <History className="w-5 h-5 text-purple-600" />
                     <span className="font-medium text-gray-800">审核历史</span>
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                      {detailArticle.reviewHistory.length} 条
+                    </span>
                   </div>
-                  <div className="space-y-2">
-                    {detailArticle.reviewHistory.map((item) => (
-                      <div key={item.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${getReviewStageColor(item.stage)}`}>
-                          <Clock className="w-4 h-4" />
+                  <div className="space-y-3">
+                    {[...detailArticle.reviewHistory].reverse().map((item, index) => (
+                      <div key={item.id || index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                          item.action === 'pass'
+                            ? 'bg-green-100 text-green-600'
+                            : item.action === 'reject'
+                            ? 'bg-red-100 text-red-600'
+                            : 'bg-blue-100 text-blue-600'
+                        }`}>
+                          {item.action === 'pass' ? (
+                            <CheckCircle className="w-4 h-4" />
+                          ) : item.action === 'reject' ? (
+                            <XCircle className="w-4 h-4" />
+                          ) : (
+                            <Clock className="w-4 h-4" />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-medium text-gray-800">
                               {item.reviewerName}
                             </span>
@@ -975,13 +1020,24 @@ export default function ReviewList() {
                             }`}>
                               {item.action === 'pass' ? '通过' : '退回'}
                             </span>
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {item.reviewTime}
+                            {item.rejectTemplateTitle && (
+                              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
+                                {item.rejectTemplateTitle}
+                              </span>
+                            )}
+                            <span className="text-xs text-gray-500 ml-auto">
+                              {item.reviewTime || item.time}
+                            </span>
                           </div>
                           {item.comment && (
-                            <div className="text-sm text-gray-600 mt-2">
+                            <div className="text-sm text-gray-600 mt-2 whitespace-pre-wrap">
                               {item.comment}
+                            </div>
+                          )}
+                          {item.rectificationRemark && (
+                            <div className="mt-2 text-sm bg-amber-50 text-amber-800 p-2.5 rounded-md border border-amber-100">
+                              <span className="font-medium">整改说明：</span>
+                              {item.rectificationRemark}
                             </div>
                           )}
                         </div>

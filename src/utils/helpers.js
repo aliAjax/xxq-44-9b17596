@@ -6,6 +6,7 @@ export const OPERATION_ACTIONS = {
   ADD: 'add',
   SAVE_DRAFT: 'save_draft',
   SUBMIT_REVIEW: 'submit_review',
+  RESUBMIT_REVIEW: 'resubmit_review',
   REVIEW_PASS: 'review_pass',
   REVIEW_REJECT: 'review_reject',
   FIRST_REVIEW_PASS: 'first_review_pass',
@@ -46,6 +47,7 @@ export const ROLLBACK_STATUS = {
 export const VERSION_TYPES = {
   SAVE_DRAFT: 'save_draft',
   SUBMIT_REVIEW: 'submit_review',
+  RESUBMIT_REVIEW: 'resubmit_review',
   REVIEW_PASS: 'review_pass',
   REVIEW_REJECT: 'review_reject',
   FIRST_REVIEW_PASS: 'first_review_pass',
@@ -61,6 +63,7 @@ export const getVersionTypeText = (type) => {
   const typeMap = {
     [VERSION_TYPES.SAVE_DRAFT]: '保存草稿',
     [VERSION_TYPES.SUBMIT_REVIEW]: '提交审核',
+    [VERSION_TYPES.RESUBMIT_REVIEW]: '整改重提',
     [VERSION_TYPES.REVIEW_PASS]: '审核通过',
     [VERSION_TYPES.REVIEW_REJECT]: '审核退回',
     [VERSION_TYPES.FIRST_REVIEW_PASS]: '初审通过',
@@ -78,6 +81,7 @@ export const getVersionTypeColor = (type) => {
   const colorMap = {
     [VERSION_TYPES.SAVE_DRAFT]: 'bg-gray-100 text-gray-700',
     [VERSION_TYPES.SUBMIT_REVIEW]: 'bg-orange-100 text-orange-700',
+    [VERSION_TYPES.RESUBMIT_REVIEW]: 'bg-amber-100 text-amber-700',
     [VERSION_TYPES.REVIEW_PASS]: 'bg-green-100 text-green-700',
     [VERSION_TYPES.REVIEW_REJECT]: 'bg-red-100 text-red-700',
     [VERSION_TYPES.FIRST_REVIEW_PASS]: 'bg-blue-100 text-blue-700',
@@ -96,6 +100,7 @@ export const getActionText = (action) => {
     [OPERATION_ACTIONS.ADD]: '新增信息',
     [OPERATION_ACTIONS.SAVE_DRAFT]: '保存草稿',
     [OPERATION_ACTIONS.SUBMIT_REVIEW]: '提交审核',
+    [OPERATION_ACTIONS.RESUBMIT_REVIEW]: '整改重提',
     [OPERATION_ACTIONS.REVIEW_PASS]: '审核通过',
     [OPERATION_ACTIONS.REVIEW_REJECT]: '审核退回',
     [OPERATION_ACTIONS.FIRST_REVIEW_PASS]: '初审通过',
@@ -134,6 +139,7 @@ export const getActionColor = (action) => {
     [OPERATION_ACTIONS.ADD]: 'bg-blue-100 text-blue-700',
     [OPERATION_ACTIONS.SAVE_DRAFT]: 'bg-gray-100 text-gray-700',
     [OPERATION_ACTIONS.SUBMIT_REVIEW]: 'bg-orange-100 text-orange-700',
+    [OPERATION_ACTIONS.RESUBMIT_REVIEW]: 'bg-amber-100 text-amber-700',
     [OPERATION_ACTIONS.REVIEW_PASS]: 'bg-green-100 text-green-700',
     [OPERATION_ACTIONS.REVIEW_REJECT]: 'bg-red-100 text-red-700',
     [OPERATION_ACTIONS.FIRST_REVIEW_PASS]: 'bg-blue-100 text-blue-700',

@@ -153,6 +153,8 @@ function reducer(state, action) {
                 claimantId: '',
                 claimantName: '',
                 claimedAt: '',
+                lastRejectTemplateId: action.payload.lastRejectTemplateId !== undefined ? action.payload.lastRejectTemplateId : item.lastRejectTemplateId,
+                lastRejectTemplateTitle: action.payload.lastRejectTemplateTitle !== undefined ? action.payload.lastRejectTemplateTitle : item.lastRejectTemplateTitle,
               }
             : item
         ),
@@ -468,6 +470,19 @@ export function AppProvider({ children }) {
       if (migrated.departmentId === undefined) {
         migrated.departmentId = deptMap.get(article.department) || ''
       }
+      if (migrated.rectificationCount === undefined) migrated.rectificationCount = 0
+      if (migrated.lastRejectTemplateId === undefined) migrated.lastRejectTemplateId = ''
+      if (migrated.lastRejectTemplateTitle === undefined) migrated.lastRejectTemplateTitle = ''
+      if (migrated.lastRectificationRemark === undefined) migrated.lastRectificationRemark = ''
+
+      if (migrated.reviewHistory && migrated.reviewHistory.length > 0) {
+        migrated.reviewHistory = migrated.reviewHistory.map((item) => ({
+          ...item,
+          rejectTemplateId: item.rejectTemplateId || '',
+          rejectTemplateTitle: item.rejectTemplateTitle || '',
+          rectificationRemark: item.rectificationRemark || '',
+        }))
+      }
 
       const config = configMap.get(article.category)
       const needTwoLevel = config ? config.requireTwoLevel : false
@@ -503,6 +518,20 @@ export function AppProvider({ children }) {
     const articleIdsWithVersions = new Set(existingVersions.map((v) => v.articleId))
     const newVersions = [...existingVersions]
 
+    if (existingVersions.length > 0) {
+      for (let i = 0; i < newVersions.length; i++) {
+        if (newVersions[i].rectificationRemark === undefined) {
+          newVersions[i] = { ...newVersions[i], rectificationRemark: '' }
+        }
+        if (newVersions[i].rejectTemplateId === undefined) {
+          newVersions[i] = { ...newVersions[i], rejectTemplateId: '' }
+        }
+        if (newVersions[i].rejectTemplateTitle === undefined) {
+          newVersions[i] = { ...newVersions[i], rejectTemplateTitle: '' }
+        }
+      }
+    }
+
     articles.forEach((article) => {
       if (!articleIdsWithVersions.has(article.id) && !article.deleted) {
         const initialVersion = {
@@ -525,6 +554,9 @@ export function AppProvider({ children }) {
           operatorName: article.authorName || '系统',
           operatorRole: article.authorId ? 'editor' : 'system',
           operatedAt: article.updatedAt || article.createdAt || formatDate(new Date()),
+          rectificationRemark: '',
+          rejectTemplateId: '',
+          rejectTemplateTitle: '',
         }
         newVersions.push(initialVersion)
       }
@@ -694,7 +726,7 @@ export function AppProvider({ children }) {
     return maxVersion + 1
   }
 
-  const addArticleVersion = (article, versionType, description = '') => {
+  const addArticleVersion = (article, versionType, description = '', extra = {}) => {
     if (!article || !article.id) return null
 
     const version = getNextVersionNumber(article.id)
@@ -721,6 +753,9 @@ export function AppProvider({ children }) {
       operatorName: currentUser?.name || article.authorName || '系统',
       operatorRole: currentUser?.role || (article.authorId ? 'editor' : 'system'),
       operatedAt: formatDateTime(new Date()),
+      rectificationRemark: extra.rectificationRemark || '',
+      rejectTemplateId: extra.rejectTemplateId || '',
+      rejectTemplateTitle: extra.rejectTemplateTitle || '',
     }
 
     const allVersions = [newVersion, ...state.articleVersions]
@@ -759,6 +794,10 @@ export function AppProvider({ children }) {
       claimantId: '',
       claimantName: '',
       claimedAt: '',
+      rectificationCount: 0,
+      lastRejectTemplateId: '',
+      lastRejectTemplateTitle: '',
+      lastRectificationRemark: '',
     }
     const articles = [newArticle, ...state.articles]
     storage.set(STORAGE_KEYS.ARTICLES, articles)
@@ -808,6 +847,10 @@ export function AppProvider({ children }) {
         claimantId: '',
         claimantName: '',
         claimedAt: '',
+        rectificationCount: 0,
+        lastRejectTemplateId: '',
+        lastRejectTemplateTitle: '',
+        lastRectificationRemark: '',
         deleted: false,
       }
     })
@@ -815,12 +858,19 @@ export function AppProvider({ children }) {
     storage.set(STORAGE_KEYS.ARTICLES, allArticles)
     dispatch({ type: actionTypes.BATCH_ADD_ARTICLES, payload: newArticles })
 
+    newArticles.forEach((article) => {
+      const versionType = article.status === 'pending'
+        ? VERSION_TYPES.SUBMIT_REVIEW
+        : VERSION_TYPES.SAVE_DRAFT
+      addArticleVersion(article, versionType)
+    })
+
     addOperationLog(OPERATION_ACTIONS.BATCH_IMPORT, `共${newArticles.length}条`)
 
     return newArticles
   }
 
-  const updateArticle = (id, updates) => {
+  const updateArticle = (id, updates, extra = {}) => {
     const article = state.articles.find((a) => a.id === id)
     if (!article) return null
     const category = state.categories.find((c) => c.code === (updates.category || article.category))
@@ -831,17 +881,31 @@ export function AppProvider({ children }) {
     let claimantId = article.claimantId
     let claimantName = article.claimantName
     let claimedAt = article.claimedAt
+    let rectificationCount = article.rectificationCount || 0
+    let lastRectificationRemark = article.lastRectificationRemark || ''
+    let lastRejectTemplateId = article.lastRejectTemplateId || ''
+    let lastRejectTemplateTitle = article.lastRejectTemplateTitle || ''
+
+    const isResubmit = updates.status === 'pending' && article.status === 'rejected'
+
     if (updates.status === 'pending') {
       reviewStage = needTwoLevel ? 'first_pending' : ''
       claimantId = ''
       claimantName = ''
       claimedAt = ''
+      if (isResubmit) {
+        rectificationCount = rectificationCount + 1
+        lastRectificationRemark = extra.rectificationRemark || ''
+        lastRejectTemplateId = ''
+        lastRejectTemplateTitle = ''
+      }
     } else if (updates.status === 'draft') {
       reviewStage = ''
       claimantId = ''
       claimantName = ''
       claimedAt = ''
     }
+
     const updated = {
       ...article,
       ...updates,
@@ -852,14 +916,21 @@ export function AppProvider({ children }) {
       claimantId,
       claimantName,
       claimedAt,
+      rectificationCount,
+      lastRectificationRemark,
+      lastRejectTemplateId,
+      lastRejectTemplateTitle,
     }
     const articles = state.articles.map((a) => (a.id === id ? updated : a))
     storage.set(STORAGE_KEYS.ARTICLES, articles)
     dispatch({ type: actionTypes.UPDATE_ARTICLE, payload: updated })
 
     if (updates.status === 'pending') {
-      addArticleVersion(updated, VERSION_TYPES.SUBMIT_REVIEW)
-      addOperationLog(OPERATION_ACTIONS.SUBMIT_REVIEW, updated.title)
+      const versionType = isResubmit ? VERSION_TYPES.RESUBMIT_REVIEW : VERSION_TYPES.SUBMIT_REVIEW
+      const versionExtra = isResubmit ? { rectificationRemark: extra.rectificationRemark || '' } : {}
+      addArticleVersion(updated, versionType, '', versionExtra)
+      const action = isResubmit ? OPERATION_ACTIONS.RESUBMIT_REVIEW : OPERATION_ACTIONS.SUBMIT_REVIEW
+      addOperationLog(action, updated.title)
     } else if (updates.status === 'draft') {
       addArticleVersion(updated, VERSION_TYPES.SAVE_DRAFT)
       addOperationLog(OPERATION_ACTIONS.SAVE_DRAFT, updated.title)
@@ -907,7 +978,7 @@ export function AppProvider({ children }) {
     dispatch({ type: actionTypes.PERMANENT_DELETE_ARTICLE, payload: id })
   }
 
-  const reviewArticle = (id, status, rejectReason = '') => {
+  const reviewArticle = (id, status, rejectReason = '', options = {}) => {
     const article = state.articles.find((a) => a.id === id)
     if (!article) return null
     const currentUser = state.currentUser
@@ -936,6 +1007,8 @@ export function AppProvider({ children }) {
     let reviewAction = ''
     let historyStage = ''
     let historyAction = ''
+    let lastRejectTemplateId = article.lastRejectTemplateId || ''
+    let lastRejectTemplateTitle = article.lastRejectTemplateTitle || ''
 
     if (!needTwoLevel) {
       firstReviewerId = currentUser.id
@@ -981,6 +1054,11 @@ export function AppProvider({ children }) {
       }
     }
 
+    if (status === 'rejected') {
+      lastRejectTemplateId = options.rejectTemplateId || ''
+      lastRejectTemplateTitle = options.rejectTemplateTitle || ''
+    }
+
     const historyItem = {
       id: generateId(),
       stage: historyStage,
@@ -991,6 +1069,9 @@ export function AppProvider({ children }) {
       reviewerRole: currentUser.role,
       reviewTime: now,
       comment: rejectReason || '',
+      rejectTemplateId: status === 'rejected' ? (options.rejectTemplateId || '') : '',
+      rejectTemplateTitle: status === 'rejected' ? (options.rejectTemplateTitle || '') : '',
+      rectificationRemark: article.lastRectificationRemark || '',
     }
 
     const updatedHistory = [...(article.reviewHistory || []), historyItem]
@@ -1014,6 +1095,8 @@ export function AppProvider({ children }) {
       claimantId: '',
       claimantName: '',
       claimedAt: '',
+      lastRejectTemplateId,
+      lastRejectTemplateTitle,
     }
 
     const articles = state.articles.map((a) => {
@@ -1037,6 +1120,8 @@ export function AppProvider({ children }) {
           claimantId: '',
           claimantName: '',
           claimedAt: '',
+          lastRejectTemplateId,
+          lastRejectTemplateTitle,
         }
       }
       return a
@@ -1046,6 +1131,7 @@ export function AppProvider({ children }) {
 
     const reviewedArticle = articles.find((a) => a.id === id)
     let versionType = VERSION_TYPES.REVIEW_PASS
+    let versionExtra = {}
     if (status === 'rejected') {
       if (historyStage === 'first') {
         versionType = VERSION_TYPES.FIRST_REVIEW_REJECT
@@ -1053,6 +1139,10 @@ export function AppProvider({ children }) {
         versionType = VERSION_TYPES.FINAL_REVIEW_REJECT
       } else {
         versionType = VERSION_TYPES.REVIEW_REJECT
+      }
+      versionExtra = {
+        rejectTemplateId: options.rejectTemplateId || '',
+        rejectTemplateTitle: options.rejectTemplateTitle || '',
       }
     } else {
       if (historyStage === 'first') {
@@ -1062,7 +1152,7 @@ export function AppProvider({ children }) {
       }
     }
     if (reviewedArticle) {
-      addArticleVersion(reviewedArticle, versionType)
+      addArticleVersion(reviewedArticle, versionType, '', versionExtra)
     }
 
     addOperationLog(reviewAction, article.title)
@@ -1723,6 +1813,10 @@ export function AppProvider({ children }) {
         claimantId: '',
         claimantName: '',
         claimedAt: '',
+        rectificationCount: 0,
+        lastRejectTemplateId: '',
+        lastRejectTemplateTitle: '',
+        lastRectificationRemark: '',
         deleted: false,
       }
     })
