@@ -1,17 +1,17 @@
 import { useCallback, useMemo, useState } from 'react'
-import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate, History, Clock, GitCompare, Hand, Unlock } from 'lucide-react'
+import { CheckCircle, XCircle, Eye, MessageSquare, BookTemplate, History, Clock, GitCompare, Hand, Unlock, RotateCcw, ArrowRight, FileText, FolderOpen, Building, Calendar, Paperclip, Link } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import StatusTag from '../components/StatusTag'
 import Pagination from '../components/Pagination'
 import RejectTemplateManager from '../components/RejectTemplateManager'
 import VersionHistoryModal from '../components/VersionHistoryModal'
 import { useApp } from '../context/useApp'
-import { getReviewStageText, getReviewStageColor, isArticleClaimed, isArticleClaimedByUser } from '../utils/helpers'
+import { getReviewStageText, getReviewStageColor, isArticleClaimed, isArticleClaimedByUser, getRollbackStatusText, getRollbackStatusColor, ROLLBACK_STATUS } from '../utils/helpers'
 
 const PAGE_SIZE = 10
 
 export default function ReviewList() {
-  const { state, reviewArticle, isTwoLevelReview, claimArticle, releaseArticle } = useApp()
+  const { state, reviewArticle, isTwoLevelReview, claimArticle, releaseArticle, getRollbackRequests, approveRollbackRequest, rejectRollbackRequest } = useApp()
   const currentUser = state.currentUser
   const [activeTab, setActiveTab] = useState('pending')
   const [currentPage, setCurrentPage] = useState(1)
@@ -26,6 +26,12 @@ export default function ReviewList() {
   const [historyArticle, setHistoryArticle] = useState(null)
   const [showVersionModal, setShowVersionModal] = useState(false)
   const [versionArticle, setVersionArticle] = useState(null)
+  const [showRollbackDetailModal, setShowRollbackDetailModal] = useState(false)
+  const [detailRollbackRequest, setDetailRollbackRequest] = useState(null)
+  const [showRollbackRejectModal, setShowRollbackRejectModal] = useState(false)
+  const [rejectRollbackId, setRejectRollbackId] = useState(null)
+  const [rollbackRejectReason, setRollbackRejectReason] = useState('')
+  const [rollbackTab, setRollbackTab] = useState('pending')
 
   const userRole = currentUser?.role
 
@@ -97,6 +103,129 @@ export default function ReviewList() {
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE
   )
+
+  const filteredRollbackRequests = useMemo(() => {
+    const filters = { keyword }
+    if (rollbackTab === 'pending') {
+      filters.status = ROLLBACK_STATUS.PENDING
+    } else if (rollbackTab === 'reviewed') {
+      filters.status = ''
+    }
+    const all = getRollbackRequests(filters)
+    if (rollbackTab === 'reviewed') {
+      return all.filter((r) => r.status !== ROLLBACK_STATUS.PENDING)
+    }
+    return all
+  }, [getRollbackRequests, rollbackTab, keyword])
+
+  const pendingRollbackCount = useMemo(() => {
+    return getRollbackRequests({ status: ROLLBACK_STATUS.PENDING }).length
+  }, [getRollbackRequests])
+
+  const rollbackTotalPages = Math.ceil(filteredRollbackRequests.length / PAGE_SIZE)
+  const paginatedRollbackRequests = filteredRollbackRequests.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  )
+
+  const handleViewRollbackDetail = (request) => {
+    setDetailRollbackRequest(request)
+    setShowRollbackDetailModal(true)
+  }
+
+  const handleApproveRollback = (requestId) => {
+    if (window.confirm('确定要通过这个回滚申请吗？通过后文章将立即回滚到目标版本并保持已发布状态。')) {
+      const result = approveRollbackRequest(requestId)
+      if (result && !result.success) {
+        alert(result.message)
+      }
+    }
+  }
+
+  const handleRejectRollback = (requestId) => {
+    setRejectRollbackId(requestId)
+    setRollbackRejectReason('')
+    setShowRollbackRejectModal(true)
+  }
+
+  const confirmRejectRollback = () => {
+    if (!rollbackRejectReason.trim()) {
+      alert('请填写驳回原因')
+      return
+    }
+    const result = rejectRollbackRequest(rejectRollbackId, rollbackRejectReason)
+    if (result && result.success) {
+      setShowRollbackRejectModal(false)
+      setRejectRollbackId(null)
+      setRollbackRejectReason('')
+    } else {
+      alert(result?.message || '操作失败')
+    }
+  }
+
+  const renderRollbackFieldDiff = (diff) => {
+    if (diff.field === 'content') {
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded">当前版本</span>
+            <ArrowRight className="w-3 h-3" />
+            <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded">目标版本</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-3 bg-green-50 border border-green-100 rounded-lg overflow-auto max-h-60">
+              <div
+                className="text-sm text-gray-700 prose prose-sm max-w-none"
+                style={{ lineHeight: '1.6' }}
+                dangerouslySetInnerHTML={{ __html: diff.oldValue || '<p class="text-gray-400">无内容</p>' }}
+              />
+            </div>
+            <div className="p-3 bg-red-50 border border-red-100 rounded-lg overflow-auto max-h-60">
+              <div
+                className="text-sm text-gray-700 prose prose-sm max-w-none"
+                style={{ lineHeight: '1.6' }}
+                dangerouslySetInnerHTML={{ __html: diff.newValue || '<p class="text-gray-400">无内容</p>' }}
+              />
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (diff.field === 'attachment') {
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded">当前版本</span>
+            <ArrowRight className="w-3 h-3" />
+            <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded">目标版本</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-3 bg-green-50 border border-green-100 rounded-lg">
+              <div className="text-sm text-green-700 break-all">{diff.oldValue || '（无附件）'}</div>
+            </div>
+            <div className="p-3 bg-red-50 border border-red-100 rounded-lg">
+              <div className="text-sm text-red-700 break-all">{diff.newValue || '（无附件）'}</div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex items-center gap-3">
+        <span className="text-sm text-gray-500 min-w-[60px]">当前：</span>
+        <span className="text-sm px-2 py-1 bg-green-50 text-green-700 rounded flex-1">
+          {diff.oldValue || '（空）'}
+        </span>
+        <ArrowRight className="w-4 h-4 text-gray-400" />
+        <span className="text-sm text-gray-500 min-w-[60px]">目标：</span>
+        <span className="text-sm px-2 py-1 bg-red-50 text-red-700 rounded flex-1">
+          {diff.newValue || '（空）'}
+        </span>
+      </div>
+    )
+  }
 
   const getApproveStatus = (article) => {
     const needTwoLevel = isTwoLevelReview(article.category)
@@ -259,206 +388,437 @@ export default function ReviewList() {
             >
               已审核
             </button>
-          </div>
-        </div>
-
-        <div className="p-4 border-b border-gray-100">
-          <div className="relative w-64">
-            <input
-              type="text"
-              value={keyword}
-              onChange={(e) => {
-                setKeyword(e.target.value)
+            <button
+              onClick={() => {
+                setActiveTab('rollback')
                 setCurrentPage(1)
+                setRollbackTab('pending')
               }}
-              placeholder="搜索标题..."
-              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            />
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'rollback'
+                  ? 'border-primary-600 text-primary-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
+              <RotateCcw className="w-4 h-4" />
+              回滚申请
+              {pendingRollbackCount > 0 && (
+                <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full">
+                  {pendingRollbackCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
-                  标题
-                </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-24">
-                  类别
-                </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
-                  提交人
-                </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
-                  状态
-                </th>
-                {activeTab === 'pending' && (
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-32">
-                    认领状态
+        {activeTab !== 'rollback' && (
+          <div className="p-4 border-b border-gray-100">
+            <div className="relative w-64">
+              <input
+                type="text"
+                value={keyword}
+                onChange={(e) => {
+                  setKeyword(e.target.value)
+                  setCurrentPage(1)
+                }}
+                placeholder="搜索标题..."
+                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'rollback' && (
+          <div className="border-b border-gray-100 bg-gray-50 px-4 py-3 flex items-center justify-between">
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  setRollbackTab('pending')
+                  setCurrentPage(1)
+                }}
+                className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
+                  rollbackTab === 'pending'
+                    ? 'bg-white text-primary-700 shadow-sm font-medium'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                待审核
+                <span className="ml-1.5 px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs rounded">
+                  {pendingRollbackCount}
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  setRollbackTab('reviewed')
+                  setCurrentPage(1)
+                }}
+                className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
+                  rollbackTab === 'reviewed'
+                    ? 'bg-white text-primary-700 shadow-sm font-medium'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                已审核
+              </button>
+            </div>
+            <div className="relative w-64">
+              <input
+                type="text"
+                value={keyword}
+                onChange={(e) => {
+                  setKeyword(e.target.value)
+                  setCurrentPage(1)
+                }}
+                placeholder="搜索标题或申请人..."
+                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+          </div>
+        )}
+
+        {activeTab !== 'rollback' && (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                    标题
                   </th>
-                )}
-                {activeTab === 'reviewed' && (
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-32">
-                    审核时间
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-24">
+                    类别
                   </th>
-                )}
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-56">
-                  操作
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedArticles.length > 0 ? (
-                paginatedArticles.map((article) => (
-                  <tr
-                    key={article.id}
-                    className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-gray-900 font-medium line-clamp-1">
-                        {article.title}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-0.5">
-                        {article.department}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-gray-600">
-                        {article.categoryName}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-gray-600">
-                        {article.authorName}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusTag status={article.status} reviewStage={article.reviewStage} />
-                    </td>
-                    {activeTab === 'pending' && (
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
+                    提交人
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
+                    状态
+                  </th>
+                  {activeTab === 'pending' && (
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-32">
+                      认领状态
+                    </th>
+                  )}
+                  {activeTab === 'reviewed' && (
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-32">
+                      审核时间
+                    </th>
+                  )}
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-56">
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedArticles.length > 0 ? (
+                  paginatedArticles.map((article) => (
+                    <tr
+                      key={article.id}
+                      className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                    >
                       <td className="px-4 py-3">
-                        {isArticleClaimed(article) ? (
-                          <div>
-                            <div className="text-sm font-medium text-cyan-700">{article.claimantName}</div>
-                            <div className="text-xs text-gray-400 mt-0.5">{article.claimedAt}</div>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">未认领</span>
-                        )}
+                        <div className="text-sm text-gray-900 font-medium line-clamp-1">
+                          {article.title}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {article.department}
+                        </div>
                       </td>
-                    )}
-                    {activeTab === 'reviewed' && (
                       <td className="px-4 py-3">
-                        <span className="text-sm text-gray-500">
-                          {article.reviewedAt}
+                        <span className="text-sm text-gray-600">
+                          {article.categoryName}
                         </span>
                       </td>
-                    )}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleViewDetail(article)}
-                          className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
-                          title="查看详情"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleViewHistory(article)}
-                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
-                          title="审核历史"
-                        >
-                          <History className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleViewVersions(article)}
-                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                          title="版本历史"
-                        >
-                          <GitCompare className="w-4 h-4" />
-                        </button>
-                        {activeTab === 'pending' && canUserClaimArticle(article) && (
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-gray-600">
+                          {article.authorName}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusTag status={article.status} reviewStage={article.reviewStage} />
+                      </td>
+                      {activeTab === 'pending' && (
+                        <td className="px-4 py-3">
+                          {isArticleClaimed(article) ? (
+                            <div>
+                              <div className="text-sm font-medium text-cyan-700">{article.claimantName}</div>
+                              <div className="text-xs text-gray-400 mt-0.5">{article.claimedAt}</div>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">未认领</span>
+                          )}
+                        </td>
+                      )}
+                      {activeTab === 'reviewed' && (
+                        <td className="px-4 py-3">
+                          <span className="text-sm text-gray-500">
+                            {article.reviewedAt}
+                          </span>
+                        </td>
+                      )}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
                           <button
-                            onClick={() => handleClaim(article.id)}
-                            className="p-1.5 text-gray-400 hover:text-cyan-600 hover:bg-cyan-50 rounded transition-colors"
-                            title="认领任务"
+                            onClick={() => handleViewDetail(article)}
+                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
+                            title="查看详情"
                           >
-                            <Hand className="w-4 h-4" />
+                            <Eye className="w-4 h-4" />
                           </button>
-                        )}
-                        {activeTab === 'pending' && canUserReleaseArticle(article) && (
                           <button
-                            onClick={() => handleRelease(article.id)}
-                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
-                            title="释放任务"
+                            onClick={() => handleViewHistory(article)}
+                            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                            title="审核历史"
                           >
-                            <Unlock className="w-4 h-4" />
+                            <History className="w-4 h-4" />
                           </button>
-                        )}
-                        {activeTab === 'pending' && canUserReleaseArticle(article, true) && !canUserReleaseArticle(article) && (
                           <button
-                            onClick={() => handleRelease(article.id, true)}
-                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
-                            title="强制释放"
+                            onClick={() => handleViewVersions(article)}
+                            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                            title="版本历史"
                           >
-                            <Unlock className="w-4 h-4" />
+                            <GitCompare className="w-4 h-4" />
                           </button>
-                        )}
-                        {activeTab === 'pending' && canUserOperateArticle(article) && (
-                          <>
+                          {activeTab === 'pending' && canUserClaimArticle(article) && (
                             <button
-                              onClick={() => handleApprove(article.id)}
-                              className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                              title={getApproveText(article)}
+                              onClick={() => handleClaim(article.id)}
+                              className="p-1.5 text-gray-400 hover:text-cyan-600 hover:bg-cyan-50 rounded transition-colors"
+                              title="认领任务"
                             >
-                              <CheckCircle className="w-4 h-4" />
+                              <Hand className="w-4 h-4" />
                             </button>
+                          )}
+                          {activeTab === 'pending' && canUserReleaseArticle(article) && (
                             <button
-                              onClick={() => handleReject(article.id)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                              title={getRejectText(article)}
+                              onClick={() => handleRelease(article.id)}
+                              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                              title="释放任务"
                             >
-                              <XCircle className="w-4 h-4" />
+                              <Unlock className="w-4 h-4" />
                             </button>
-                          </>
-                        )}
+                          )}
+                          {activeTab === 'pending' && canUserReleaseArticle(article, true) && !canUserReleaseArticle(article) && (
+                            <button
+                              onClick={() => handleRelease(article.id, true)}
+                              className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                              title="强制释放"
+                            >
+                              <Unlock className="w-4 h-4" />
+                            </button>
+                          )}
+                          {activeTab === 'pending' && canUserOperateArticle(article) && (
+                            <>
+                              <button
+                                onClick={() => handleApprove(article.id)}
+                                className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                                title={getApproveText(article)}
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleReject(article.id)}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title={getRejectText(article)}
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-4 py-12 text-center text-gray-400"
+                    >
+                      暂无数据
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {activeTab === 'rollback' && (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                    文章标题
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
+                    类别
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
+                    申请人
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-32">
+                    版本变更
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
+                    状态
+                  </th>
+                  {rollbackTab === 'reviewed' && (
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-32">
+                      审核时间
+                    </th>
+                  )}
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-48">
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedRollbackRequests.length > 0 ? (
+                  paginatedRollbackRequests.map((request) => (
+                    <tr
+                      key={request.id}
+                      className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="text-sm text-gray-900 font-medium line-clamp-1">
+                          {request.articleTitle}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {request.department}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-gray-600">
+                          {request.categoryName}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-gray-600">
+                          {request.applicantName}
+                        </span>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {request.appliedAt}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded">
+                            v{request.currentVersionNumber}
+                          </span>
+                          <ArrowRight className="w-3 h-3 text-gray-400" />
+                          <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded">
+                            v{request.targetVersionNumber}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {request.differences.length} 处变更
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRollbackStatusColor(request.status)}`}>
+                          {getRollbackStatusText(request.status)}
+                        </span>
+                      </td>
+                      {rollbackTab === 'reviewed' && (
+                        <td className="px-4 py-3">
+                          <div>
+                            <span className="text-sm text-gray-600">{request.reviewerName}</span>
+                            <div className="text-xs text-gray-400 mt-0.5">
+                              {request.reviewedAt}
+                            </div>
+                          </div>
+                        </td>
+                      )}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleViewRollbackDetail(request)}
+                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
+                            title="查看差异详情"
+                          >
+                            <GitCompare className="w-4 h-4" />
+                          </button>
+                          {rollbackTab === 'pending' && (
+                            <>
+                              <button
+                                onClick={() => handleApproveRollback(request.id)}
+                                className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                                title="通过回滚"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleRejectRollback(request.id)}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title="驳回回滚"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={rollbackTab === 'reviewed' ? 7 : 6}
+                      className="px-4 py-12 text-center text-gray-400"
+                    >
+                      <div className="flex flex-col items-center gap-2">
+                        <RotateCcw className="w-10 h-10 text-gray-300" />
+                        <span>暂无回滚申请</span>
                       </div>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-4 py-12 text-center text-gray-400"
-                  >
-                    暂无数据
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-        {totalPages > 1 && (
+        {activeTab !== 'rollback' && totalPages > 1 && (
           <div className="p-4 border-t border-gray-100">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
+
+        {activeTab === 'rollback' && rollbackTotalPages > 1 && (
+          <div className="p-4 border-t border-gray-100">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={rollbackTotalPages}
               onPageChange={setCurrentPage}
             />
           </div>
@@ -792,6 +1152,233 @@ export default function ReviewList() {
                   <p className="text-sm">暂无审核历史</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRollbackDetailModal && detailRollbackRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col fade-in">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">回滚申请详情</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    申请号：{detailRollbackRequest.id}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowRollbackDetailModal(false)
+                  setDetailRollbackRequest(null)
+                }}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+              >
+                <svg
+                  className="w-5 h-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid grid-cols-2 gap-4 mb-6 pb-6 border-b border-gray-100">
+                <div className="flex items-start gap-2">
+                  <FileText className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-xs text-gray-500">文章标题</div>
+                    <div className="text-sm font-medium text-gray-800 mt-0.5">
+                      {detailRollbackRequest.articleTitle}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <FolderOpen className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-xs text-gray-500">所属分类</div>
+                    <div className="text-sm text-gray-700 mt-0.5">
+                      {detailRollbackRequest.categoryName}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Building className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-xs text-gray-500">发布部门</div>
+                    <div className="text-sm text-gray-700 mt-0.5">
+                      {detailRollbackRequest.department}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRollbackStatusColor(detailRollbackRequest.status)}`}>
+                    {getRollbackStatusText(detailRollbackRequest.status)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mb-6 pb-6 border-b border-gray-100">
+                <h4 className="text-sm font-medium text-gray-800 mb-3">版本变更</h4>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 p-4 bg-green-50 border border-green-100 rounded-lg">
+                    <div className="text-xs text-green-600 font-medium mb-2">当前版本</div>
+                    <div className="text-lg font-bold text-green-800">
+                      v{detailRollbackRequest.currentVersionNumber}
+                    </div>
+                  </div>
+                  <div className="text-gray-300">
+                    <ArrowRight className="w-6 h-6" />
+                  </div>
+                  <div className="flex-1 p-4 bg-red-50 border border-red-100 rounded-lg">
+                    <div className="text-xs text-red-600 font-medium mb-2">回滚至</div>
+                    <div className="text-lg font-bold text-red-800">
+                      v{detailRollbackRequest.targetVersionNumber}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-6 pb-6 border-b border-gray-100">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-gray-500 mb-1">申请人</div>
+                    <div className="text-sm font-medium text-gray-800">
+                      {detailRollbackRequest.applicantName}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      {detailRollbackRequest.appliedAt}
+                    </div>
+                  </div>
+                  {detailRollbackRequest.reviewerName && (
+                    <div>
+                      <div className="text-xs text-gray-500 mb-1">审核人</div>
+                      <div className="text-sm font-medium text-gray-800">
+                        {detailRollbackRequest.reviewerName}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        {detailRollbackRequest.reviewedAt}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
+                  <GitCompare className="w-4 h-4 text-primary-600" />
+                  字段差异对比
+                  <span className="text-xs font-normal text-gray-400">
+                    共 {detailRollbackRequest.differences.length} 处变更
+                  </span>
+                </h4>
+                <div className="space-y-5">
+                  {detailRollbackRequest.differences.map((diff) => (
+                    <div key={diff.field} className="pb-5 border-b border-gray-100 last:border-0 last:pb-0">
+                      <div className="text-sm font-medium text-gray-800 mb-3 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
+                        {diff.label}
+                      </div>
+                      {renderRollbackFieldDiff(diff)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {detailRollbackRequest.rejectReason && (
+                <div className="mt-6 p-4 bg-red-50 border border-red-100 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-sm font-medium text-red-800">驳回原因</div>
+                      <div className="text-sm text-red-600 mt-1">
+                        {detailRollbackRequest.rejectReason}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {detailRollbackRequest.status === ROLLBACK_STATUS.PENDING && (
+              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 bg-gray-50">
+                <button
+                  onClick={() => {
+                    setShowRollbackDetailModal(false)
+                    handleRejectRollback(detailRollbackRequest.id)
+                  }}
+                  className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm flex items-center gap-2"
+                >
+                  <XCircle className="w-4 h-4" />
+                  驳回申请
+                </button>
+                <button
+                  onClick={() => {
+                    setShowRollbackDetailModal(false)
+                    handleApproveRollback(detailRollbackRequest.id)
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  通过回滚
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showRollbackRejectModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 m-4 fade-in">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <XCircle className="w-5 h-5 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">
+                驳回归滚申请
+              </h3>
+            </div>
+            <p className="text-gray-600 text-sm mb-4">
+              请填写驳回原因，以便编辑人员了解情况。
+            </p>
+            <textarea
+              value={rollbackRejectReason}
+              onChange={(e) => setRollbackRejectReason(e.target.value)}
+              placeholder="请输入驳回原因..."
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none text-sm"
+            />
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowRollbackRejectModal(false)
+                  setRejectRollbackId(null)
+                  setRollbackRejectReason('')
+                }}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmRejectRollback}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+              >
+                确认驳回
+              </button>
             </div>
           </div>
         </div>

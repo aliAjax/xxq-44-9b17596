@@ -14,6 +14,7 @@ const STORAGE_KEYS = {
   ARTICLE_VERSIONS: 'gov_article_versions',
   VERSIONS_INITIALIZED: 'gov_versions_initialized',
   IMPORT_DRAFTS: 'gov_import_drafts',
+  ROLLBACK_REQUESTS: 'gov_rollback_requests',
   INITIALIZED: 'gov_initialized',
 }
 

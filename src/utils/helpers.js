@@ -32,6 +32,15 @@ export const OPERATION_ACTIONS = {
   UPDATE_DEPARTMENT: 'update_department',
   DISABLE_DEPARTMENT: 'disable_department',
   ENABLE_DEPARTMENT: 'enable_department',
+  ROLLBACK_REQUEST: 'rollback_request',
+  ROLLBACK_APPROVE: 'rollback_approve',
+  ROLLBACK_REJECT: 'rollback_reject',
+}
+
+export const ROLLBACK_STATUS = {
+  PENDING: 'rollback_pending',
+  APPROVED: 'rollback_approved',
+  REJECTED: 'rollback_rejected',
 }
 
 export const VERSION_TYPES = {
@@ -113,6 +122,9 @@ export const getActionText = (action) => {
     [OPERATION_ACTIONS.UPDATE_DEPARTMENT]: '编辑科室',
     [OPERATION_ACTIONS.DISABLE_DEPARTMENT]: '停用科室',
     [OPERATION_ACTIONS.ENABLE_DEPARTMENT]: '启用科室',
+    [OPERATION_ACTIONS.ROLLBACK_REQUEST]: '申请回滚',
+    [OPERATION_ACTIONS.ROLLBACK_APPROVE]: '回滚通过',
+    [OPERATION_ACTIONS.ROLLBACK_REJECT]: '回滚驳回',
   }
   return actionMap[action] || action
 }
@@ -148,8 +160,29 @@ export const getActionColor = (action) => {
     [OPERATION_ACTIONS.UPDATE_DEPARTMENT]: 'bg-indigo-100 text-indigo-700',
     [OPERATION_ACTIONS.DISABLE_DEPARTMENT]: 'bg-gray-100 text-gray-700',
     [OPERATION_ACTIONS.ENABLE_DEPARTMENT]: 'bg-green-100 text-green-700',
+    [OPERATION_ACTIONS.ROLLBACK_REQUEST]: 'bg-orange-100 text-orange-700',
+    [OPERATION_ACTIONS.ROLLBACK_APPROVE]: 'bg-emerald-100 text-emerald-700',
+    [OPERATION_ACTIONS.ROLLBACK_REJECT]: 'bg-red-100 text-red-700',
   }
   return colorMap[action] || 'bg-gray-100 text-gray-700'
+}
+
+export const getRollbackStatusText = (status) => {
+  const statusMap = {
+    [ROLLBACK_STATUS.PENDING]: '待审核',
+    [ROLLBACK_STATUS.APPROVED]: '已通过',
+    [ROLLBACK_STATUS.REJECTED]: '已驳回',
+  }
+  return statusMap[status] || status
+}
+
+export const getRollbackStatusColor = (status) => {
+  const colorMap = {
+    [ROLLBACK_STATUS.PENDING]: 'bg-orange-100 text-orange-700',
+    [ROLLBACK_STATUS.APPROVED]: 'bg-green-100 text-green-700',
+    [ROLLBACK_STATUS.REJECTED]: 'bg-red-100 text-red-700',
+  }
+  return colorMap[status] || 'bg-gray-100 text-gray-700'
 }
 
 export const formatDate = (dateString) => {

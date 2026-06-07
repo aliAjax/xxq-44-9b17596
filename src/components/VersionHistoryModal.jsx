@@ -12,15 +12,17 @@ import {
   Paperclip,
   ArrowRight,
   Link,
+  AlertCircle,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import { getVersionTypeText, getVersionTypeColor } from '../utils/helpers'
+import { getVersionTypeText, getVersionTypeColor, ROLLBACK_STATUS } from '../utils/helpers'
 
 export default function VersionHistoryModal({ article, onClose, showRestore = true }) {
-  const { getArticleVersions, compareVersions, restoreArticleFromVersion, state } = useApp()
+  const { getArticleVersions, compareVersions, restoreArticleFromVersion, createRollbackRequest, state } = useApp()
   const [selectedVersionId, setSelectedVersionId] = useState(null)
   const [compareMode, setCompareMode] = useState(false)
   const [compareVersionId, setCompareVersionId] = useState(null)
+  const [showRollbackConfirm, setShowRollbackConfirm] = useState(false)
 
   const versions = useMemo(() => {
     if (!article) return []
@@ -46,6 +48,15 @@ export default function VersionHistoryModal({ article, onClose, showRestore = tr
     return currentIdx >= 0 && currentIdx < versions.length - 1
   }, [currentVersion, versions])
 
+  const hasPendingRollback = useMemo(() => {
+    if (!article) return false
+    return state.rollbackRequests.some(
+      (r) => r.articleId === article.id && r.status === ROLLBACK_STATUS.PENDING
+    )
+  }, [article, state.rollbackRequests])
+
+  const isPublished = article?.status === 'published'
+
   const handleSelectVersion = (versionId) => {
     setSelectedVersionId(versionId)
     setCompareMode(false)
@@ -68,9 +79,30 @@ export default function VersionHistoryModal({ article, onClose, showRestore = tr
   const handleRestore = (versionId) => {
     const version = versions.find((v) => v.id === versionId)
     if (!version) return
-    if (window.confirm(`确定要从 v${version.version} 版本恢复为草稿吗？`)) {
-      restoreArticleFromVersion(versionId)
+
+    if (isPublished) {
+      if (hasPendingRollback) {
+        alert('该文章已有待审核的回滚申请，请等待审核结果。')
+        return
+      }
+      setShowRollbackConfirm(true)
+    } else {
+      if (window.confirm(`确定要从 v${version.version} 版本恢复为草稿吗？`)) {
+        restoreArticleFromVersion(versionId)
+        onClose?.()
+      }
+    }
+  }
+
+  const confirmRollbackRequest = () => {
+    if (!currentVersion) return
+    const result = createRollbackRequest(currentVersion.id)
+    if (result && result.success) {
+      alert('回滚申请已提交，请等待审核员审核。')
+      setShowRollbackConfirm(false)
       onClose?.()
+    } else {
+      alert(result?.message || '提交失败，请重试。')
     }
   }
 
@@ -318,10 +350,17 @@ export default function VersionHistoryModal({ article, onClose, showRestore = tr
                     {canRestore && currentVersion.versionType !== 'initial' && (
                       <button
                         onClick={() => handleRestore(currentVersion.id)}
-                        className="text-xs px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors flex items-center gap-1.5"
+                        disabled={isPublished && hasPendingRollback}
+                        className={`text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                          isPublished && hasPendingRollback
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : isPublished
+                            ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                            : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                        }`}
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
-                        恢复为草稿
+                        {isPublished ? '申请回滚' : '恢复为草稿'}
                       </button>
                     )}
                   </div>
@@ -361,6 +400,44 @@ export default function VersionHistoryModal({ article, onClose, showRestore = tr
           </div>
         </div>
       </div>
+
+      {showRollbackConfirm && currentVersion && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 fade-in">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-orange-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">申请回滚</h3>
+            </div>
+            <div className="space-y-3 mb-6">
+              <p className="text-sm text-gray-600">
+                您确定要将文章回滚到 <span className="font-medium text-gray-900">v{currentVersion.version}</span> 版本吗？
+              </p>
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-700">
+                  <span className="font-medium">提示：</span>回滚已发布文章需要审核员审核通过后才能生效。审核员将看到当前版本与目标版本的字段差异。
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowRollbackConfirm(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmRollbackRequest}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                提交申请
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

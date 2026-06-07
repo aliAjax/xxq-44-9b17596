@@ -7,6 +7,7 @@ import {
   formatDateTime,
   OPERATION_ACTIONS,
   VERSION_TYPES,
+  ROLLBACK_STATUS,
   getVersionTypeText,
   DEFAULT_VALIDATION_RULES,
   getValidationRules,
@@ -25,6 +26,7 @@ const initialState = {
   reviewFlowConfigs: [],
   articleVersions: [],
   importDrafts: [],
+  rollbackRequests: [],
 }
 
 const actionTypes = {
@@ -59,6 +61,9 @@ const actionTypes = {
   ADD_DEPARTMENT: 'ADD_DEPARTMENT',
   UPDATE_DEPARTMENT: 'UPDATE_DEPARTMENT',
   INIT_DEPARTMENTS: 'INIT_DEPARTMENTS',
+  INIT_ROLLBACK_REQUESTS: 'INIT_ROLLBACK_REQUESTS',
+  ADD_ROLLBACK_REQUEST: 'ADD_ROLLBACK_REQUEST',
+  UPDATE_ROLLBACK_REQUEST: 'UPDATE_ROLLBACK_REQUEST',
 }
 
 function reducer(state, action) {
@@ -76,6 +81,7 @@ function reducer(state, action) {
         currentUser: action.payload.currentUser,
         articleVersions: action.payload.articleVersions,
         importDrafts: action.payload.importDrafts,
+        rollbackRequests: action.payload.rollbackRequests,
       }
     case actionTypes.SET_USER:
       return {
@@ -283,6 +289,23 @@ function reducer(state, action) {
         departments: state.departments
           .map((d) => (d.id === action.payload.id ? action.payload : d))
           .sort((a, b) => (a.sort || 0) - (b.sort || 0)),
+      }
+    case actionTypes.INIT_ROLLBACK_REQUESTS:
+      return {
+        ...state,
+        rollbackRequests: action.payload,
+      }
+    case actionTypes.ADD_ROLLBACK_REQUEST:
+      return {
+        ...state,
+        rollbackRequests: [action.payload, ...state.rollbackRequests],
+      }
+    case actionTypes.UPDATE_ROLLBACK_REQUEST:
+      return {
+        ...state,
+        rollbackRequests: state.rollbackRequests.map((r) =>
+          r.id === action.payload.id ? action.payload : r
+        ),
       }
     default:
       return state
@@ -599,6 +622,7 @@ export function AppProvider({ children }) {
     const userImportDrafts = currentUser
       ? allImportDrafts.filter((d) => d.createdBy === currentUser.id)
       : []
+    const allRollbackRequests = storage.get(STORAGE_KEYS.ROLLBACK_REQUESTS) || []
 
     dispatch({
       type: actionTypes.INIT_DATA,
@@ -613,6 +637,7 @@ export function AppProvider({ children }) {
         currentUser,
         articleVersions: finalVersions,
         importDrafts: userImportDrafts,
+        rollbackRequests: allRollbackRequests,
       },
     })
   }, [])
@@ -1272,6 +1297,171 @@ export function AppProvider({ children }) {
     return restored
   }
 
+  const createRollbackRequest = (versionId) => {
+    const targetVersion = getArticleVersionById(versionId)
+    if (!targetVersion) return { success: false, message: '目标版本不存在' }
+
+    const article = state.articles.find((a) => a.id === targetVersion.articleId)
+    if (!article) return { success: false, message: '文章不存在' }
+
+    if (article.status !== 'published') {
+      return { success: false, message: '只有已发布的文章才能申请回滚' }
+    }
+
+    const hasPending = state.rollbackRequests.some(
+      (r) => r.articleId === article.id && r.status === ROLLBACK_STATUS.PENDING
+    )
+    if (hasPending) {
+      return { success: false, message: '该文章已有待审核的回滚申请' }
+    }
+
+    const currentVersion = getArticleVersions(article.id)[0]
+    const differences = compareVersions(currentVersion, targetVersion)
+
+    const newRequest = {
+      id: 'rb_' + generateId(),
+      articleId: article.id,
+      articleTitle: article.title,
+      category: article.category,
+      categoryName: article.categoryName,
+      department: article.department,
+      targetVersionId: targetVersion.id,
+      targetVersionNumber: targetVersion.version,
+      currentVersionId: currentVersion.id,
+      currentVersionNumber: currentVersion.version,
+      status: ROLLBACK_STATUS.PENDING,
+      differences,
+      applicantId: state.currentUser?.id || '',
+      applicantName: state.currentUser?.name || '',
+      appliedAt: formatDateTime(new Date()),
+      reviewerId: '',
+      reviewerName: '',
+      reviewedAt: '',
+      rejectReason: '',
+    }
+
+    const allRequests = [newRequest, ...state.rollbackRequests]
+    storage.set(STORAGE_KEYS.ROLLBACK_REQUESTS, allRequests)
+    dispatch({ type: actionTypes.ADD_ROLLBACK_REQUEST, payload: newRequest })
+
+    addOperationLog(OPERATION_ACTIONS.ROLLBACK_REQUEST, article.title)
+
+    return { success: true, data: newRequest }
+  }
+
+  const getRollbackRequests = (filters = {}) => {
+    let result = [...state.rollbackRequests]
+
+    if (filters.status) {
+      result = result.filter((r) => r.status === filters.status)
+    }
+    if (filters.articleId) {
+      result = result.filter((r) => r.articleId === filters.articleId)
+    }
+    if (filters.keyword) {
+      const kw = filters.keyword.toLowerCase()
+      result = result.filter(
+        (r) =>
+          r.articleTitle.toLowerCase().includes(kw) ||
+          r.applicantName.toLowerCase().includes(kw)
+      )
+    }
+
+    result.sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt))
+    return result
+  }
+
+  const getRollbackRequestById = (requestId) => {
+    return state.rollbackRequests.find((r) => r.id === requestId) || null
+  }
+
+  const approveRollbackRequest = (requestId) => {
+    const request = getRollbackRequestById(requestId)
+    if (!request) return { success: false, message: '回滚申请不存在' }
+    if (request.status !== ROLLBACK_STATUS.PENDING) {
+      return { success: false, message: '该申请状态不允许审核' }
+    }
+
+    const targetVersion = getArticleVersionById(request.targetVersionId)
+    if (!targetVersion) return { success: false, message: '目标版本不存在' }
+
+    const article = state.articles.find((a) => a.id === request.articleId)
+    if (!article) return { success: false, message: '文章不存在' }
+
+    const now = formatDateTime(new Date())
+    const currentUser = state.currentUser
+
+    const rolledBack = {
+      ...article,
+      title: targetVersion.title,
+      category: targetVersion.category,
+      categoryName: targetVersion.categoryName,
+      department: targetVersion.department,
+      publishDate: targetVersion.publishDate || article.publishDate,
+      content: targetVersion.content,
+      attachmentUrl: targetVersion.attachmentUrl,
+      attachmentName: targetVersion.attachmentName,
+      reviewerId: currentUser?.id || '',
+      reviewerName: currentUser?.name || '',
+      reviewedAt: now,
+      updatedAt: formatDate(new Date()),
+    }
+
+    const articles = state.articles.map((a) => (a.id === article.id ? rolledBack : a))
+    storage.set(STORAGE_KEYS.ARTICLES, articles)
+    dispatch({ type: actionTypes.UPDATE_ARTICLE, payload: rolledBack })
+
+    addArticleVersion(rolledBack, VERSION_TYPES.RESTORE, `回滚到 v${targetVersion.version} 版本`)
+
+    const updatedRequest = {
+      ...request,
+      status: ROLLBACK_STATUS.APPROVED,
+      reviewerId: currentUser?.id || '',
+      reviewerName: currentUser?.name || '',
+      reviewedAt: now,
+    }
+
+    const allRequests = state.rollbackRequests.map((r) =>
+      r.id === requestId ? updatedRequest : r
+    )
+    storage.set(STORAGE_KEYS.ROLLBACK_REQUESTS, allRequests)
+    dispatch({ type: actionTypes.UPDATE_ROLLBACK_REQUEST, payload: updatedRequest })
+
+    addOperationLog(OPERATION_ACTIONS.ROLLBACK_APPROVE, article.title)
+
+    return { success: true, data: updatedRequest }
+  }
+
+  const rejectRollbackRequest = (requestId, rejectReason = '') => {
+    const request = getRollbackRequestById(requestId)
+    if (!request) return { success: false, message: '回滚申请不存在' }
+    if (request.status !== ROLLBACK_STATUS.PENDING) {
+      return { success: false, message: '该申请状态不允许审核' }
+    }
+
+    const now = formatDateTime(new Date())
+    const currentUser = state.currentUser
+
+    const updatedRequest = {
+      ...request,
+      status: ROLLBACK_STATUS.REJECTED,
+      reviewerId: currentUser?.id || '',
+      reviewerName: currentUser?.name || '',
+      reviewedAt: now,
+      rejectReason,
+    }
+
+    const allRequests = state.rollbackRequests.map((r) =>
+      r.id === requestId ? updatedRequest : r
+    )
+    storage.set(STORAGE_KEYS.ROLLBACK_REQUESTS, allRequests)
+    dispatch({ type: actionTypes.UPDATE_ROLLBACK_REQUEST, payload: updatedRequest })
+
+    addOperationLog(OPERATION_ACTIONS.ROLLBACK_REJECT, request.articleTitle)
+
+    return { success: true, data: updatedRequest }
+  }
+
   const addRejectTemplate = (template) => {
     const maxSort = state.rejectTemplates.length > 0
       ? Math.max(...state.rejectTemplates.map((t) => t.sort))
@@ -1594,6 +1784,11 @@ export function AppProvider({ children }) {
         updateCategory,
         addDepartment,
         updateDepartment,
+        createRollbackRequest,
+        getRollbackRequests,
+        getRollbackRequestById,
+        approveRollbackRequest,
+        rejectRollbackRequest,
       }}
     >
       {children}
