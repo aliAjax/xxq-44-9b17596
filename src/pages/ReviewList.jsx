@@ -19,6 +19,7 @@ export default function ReviewList() {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectArticleId, setRejectArticleId] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [selectedRejectTemplate, setSelectedRejectTemplate] = useState(null)
   const [showTemplatePanel, setShowTemplatePanel] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [detailArticle, setDetailArticle] = useState(null)
@@ -278,12 +279,14 @@ export default function ReviewList() {
   const handleReject = (id) => {
     setRejectArticleId(id)
     setRejectReason('')
+    setSelectedRejectTemplate(null)
     setShowTemplatePanel(false)
     setShowRejectModal(true)
   }
 
   const handleSelectTemplate = (template) => {
     setRejectReason(template.content)
+    setSelectedRejectTemplate(template)
     setShowTemplatePanel(false)
   }
 
@@ -292,7 +295,12 @@ export default function ReviewList() {
       alert('请填写退回原因')
       return
     }
-    const result = reviewArticle(rejectArticleId, 'rejected', rejectReason)
+    const options = {}
+    if (selectedRejectTemplate) {
+      options.rejectTemplateId = selectedRejectTemplate.id
+      options.rejectTemplateTitle = selectedRejectTemplate.title
+    }
+    const result = reviewArticle(rejectArticleId, 'rejected', rejectReason, options)
     if (result && result.success === false) {
       alert(result.message)
       return
@@ -300,6 +308,7 @@ export default function ReviewList() {
     setShowRejectModal(false)
     setRejectArticleId(null)
     setRejectReason('')
+    setSelectedRejectTemplate(null)
   }
 
   const handleViewDetail = (article) => {

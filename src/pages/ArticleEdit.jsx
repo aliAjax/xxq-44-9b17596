@@ -425,12 +425,12 @@ export default function ArticleEdit() {
                         {lastRejectInfo.reviewerName}
                       </span>
                       <span className="text-xs text-red-500">
-                        {lastRejectInfo.reviewedAt}
+                        {lastRejectInfo.reviewTime}
                       </span>
                     </div>
-                    {lastRejectInfo.reviewStage && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${getReviewStageColor(lastRejectInfo.reviewStage)}`}>
-                        {getReviewStageText(lastRejectInfo.reviewStage)}
+                    {lastRejectInfo.stage && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${getReviewStageColor(lastRejectInfo.stage)}`}>
+                        {getReviewStageText(lastRejectInfo.stage)}
                       </span>
                     )}
                   </div>
@@ -554,9 +554,9 @@ export default function ArticleEdit() {
                         }`}>
                           {record.action === 'pass' ? '审核通过' : record.action === 'reject' ? '退回修改' : '提交审核'}
                         </span>
-                        {record.reviewStage && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${getReviewStageColor(record.reviewStage)}`}>
-                            {getReviewStageText(record.reviewStage)}
+                        {record.stage && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${getReviewStageColor(record.stage)}`}>
+                            {getReviewStageText(record.stage)}
                           </span>
                         )}
                         {record.rejectTemplateTitle && (
@@ -565,7 +565,7 @@ export default function ArticleEdit() {
                           </span>
                         )}
                         <span className="text-xs text-gray-500 ml-auto">
-                          {record.reviewedAt || record.time}
+                          {record.reviewTime}
                         </span>
                       </div>
                       {record.comment && (

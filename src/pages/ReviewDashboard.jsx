@@ -31,6 +31,7 @@ export default function ReviewDashboard() {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectArticleId, setRejectArticleId] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [selectedRejectTemplate, setSelectedRejectTemplate] = useState(null)
   const [showTemplatePanel, setShowTemplatePanel] = useState(false)
 
   const isArticlePendingForUser = useCallback((article) => {
@@ -175,12 +176,14 @@ export default function ReviewDashboard() {
   const handleReject = (id) => {
     setRejectArticleId(id)
     setRejectReason('')
+    setSelectedRejectTemplate(null)
     setShowTemplatePanel(false)
     setShowRejectModal(true)
   }
 
   const handleSelectTemplate = (template) => {
     setRejectReason(template.content)
+    setSelectedRejectTemplate(template)
     setShowTemplatePanel(false)
   }
 
@@ -189,7 +192,12 @@ export default function ReviewDashboard() {
       alert('请填写退回原因')
       return
     }
-    const result = reviewArticle(rejectArticleId, 'rejected', rejectReason)
+    const options = {}
+    if (selectedRejectTemplate) {
+      options.rejectTemplateId = selectedRejectTemplate.id
+      options.rejectTemplateTitle = selectedRejectTemplate.title
+    }
+    const result = reviewArticle(rejectArticleId, 'rejected', rejectReason, options)
     if (result && result.success === false) {
       alert(result.message)
       return
@@ -197,6 +205,7 @@ export default function ReviewDashboard() {
     setShowRejectModal(false)
     setRejectArticleId(null)
     setRejectReason('')
+    setSelectedRejectTemplate(null)
     setShowTemplatePanel(false)
     setShowDetailModal(false)
     setDetailArticle(null)

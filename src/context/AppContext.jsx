@@ -456,6 +456,9 @@ export function AppProvider({ children }) {
 
     return articles.map((article) => {
       const migrated = { ...article }
+      const config = configMap.get(article.category)
+      const needTwoLevel = config ? config.requireTwoLevel : false
+
       if (migrated.firstReviewerId === undefined) migrated.firstReviewerId = ''
       if (migrated.firstReviewerName === undefined) migrated.firstReviewerName = ''
       if (migrated.firstReviewedAt === undefined) migrated.firstReviewedAt = ''
@@ -475,7 +478,8 @@ export function AppProvider({ children }) {
       if (migrated.lastRejectTemplateTitle === undefined) migrated.lastRejectTemplateTitle = ''
       if (migrated.lastRectificationRemark === undefined) migrated.lastRectificationRemark = ''
 
-      if (migrated.reviewHistory && migrated.reviewHistory.length > 0) {
+      const hasHistory = migrated.reviewHistory && migrated.reviewHistory.length > 0
+      if (hasHistory) {
         migrated.reviewHistory = migrated.reviewHistory.map((item) => ({
           ...item,
           rejectTemplateId: item.rejectTemplateId || '',
@@ -484,8 +488,53 @@ export function AppProvider({ children }) {
         }))
       }
 
-      const config = configMap.get(article.category)
-      const needTwoLevel = config ? config.requireTwoLevel : false
+      if (article.status === 'rejected' && !hasHistory && article.rejectReason) {
+        const historyStage = needTwoLevel
+          ? (article.finalReviewerId ? 'final' : 'first')
+          : 'single'
+        migrated.reviewHistory = [{
+          id: 'h_migrated_' + article.id,
+          stage: historyStage,
+          action: 'reject',
+          status: 'rejected',
+          reviewerId: article.reviewerId || '',
+          reviewerName: article.reviewerName || '',
+          reviewerRole: '',
+          reviewTime: article.reviewedAt || '',
+          comment: article.rejectReason || '',
+          rejectTemplateId: '',
+          rejectTemplateTitle: '',
+          rectificationRemark: '',
+        }]
+      }
+
+      if (migrated.reviewHistory && migrated.reviewHistory.length > 0) {
+        const rejectRecords = migrated.reviewHistory.filter((h) => h.action === 'reject')
+        if (rejectRecords.length > 0) {
+          const lastReject = rejectRecords[rejectRecords.length - 1]
+          if (lastReject.rejectTemplateId && !migrated.lastRejectTemplateId) {
+            migrated.lastRejectTemplateId = lastReject.rejectTemplateId
+          }
+          if (lastReject.rejectTemplateTitle && !migrated.lastRejectTemplateTitle) {
+            migrated.lastRejectTemplateTitle = lastReject.rejectTemplateTitle
+          }
+          if (article.status !== 'rejected') {
+            migrated.rectificationCount = rejectRecords.length
+          } else {
+            migrated.rectificationCount = Math.max(0, rejectRecords.length - 1)
+          }
+        }
+
+        const submitRecords = migrated.reviewHistory.filter(
+          (h) => h.action === 'submit' || h.rectificationRemark
+        )
+        if (submitRecords.length > 0) {
+          const lastSubmit = submitRecords[submitRecords.length - 1]
+          if (lastSubmit.rectificationRemark && !migrated.lastRectificationRemark) {
+            migrated.lastRectificationRemark = lastSubmit.rectificationRemark
+          }
+        }
+      }
 
       if (!migrated.reviewStage) {
         if (article.status === 'pending' && needTwoLevel) {
