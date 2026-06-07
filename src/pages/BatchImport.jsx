@@ -13,16 +13,6 @@ import {
 import AdminLayout from '../components/AdminLayout'
 import { useApp } from '../context/useApp'
 
-const CSV_COLUMNS = [
-  '标题',
-  '类别',
-  '发布科室',
-  '发布日期',
-  '正文',
-  '附件名称',
-  '附件链接',
-]
-
 const SAMPLE_CSV = `标题,类别,发布科室,发布日期,正文,附件名称,附件链接
 关于开展2024年度政务公开培训的通知,notice,办公室,2024-06-01,"各科室、各下属单位：
 为进一步提升政务公开工作水平，现就开展2024年度政务公开培训通知如下：

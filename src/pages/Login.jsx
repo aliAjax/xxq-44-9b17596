@@ -21,6 +21,7 @@ export default function Login() {
   const isEditorRoute = (path) => {
     return (
       path?.startsWith('/admin/articles') ||
+      path?.startsWith('/admin/batch-import') ||
       path?.startsWith('/admin/recycle') ||
       path?.startsWith('/admin/department-stats') ||
       path?.startsWith('/admin/calendar') ||
