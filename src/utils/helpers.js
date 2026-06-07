@@ -517,9 +517,6 @@ export const calculateTimeoutInfo = (article, reviewFlowConfig, now = new Date()
     if (article.firstReviewStartTime) {
       startTime = parseDateTime(article.firstReviewStartTime)
     }
-    if (!startTime && article.claimedAt) {
-      startTime = parseDateTime(article.claimedAt)
-    }
     if (!startTime && article.submittedAt) {
       startTime = parseDateTime(article.submittedAt)
     }
