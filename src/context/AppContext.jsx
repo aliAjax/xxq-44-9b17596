@@ -761,7 +761,7 @@ export function AppProvider({ children }) {
     dispatch({ type: actionTypes.INIT_IMPORT_DRAFTS, payload: [] })
   }
 
-  const addOperationLog = (action, articleTitle) => {
+  const addOperationLog = (action, articleTitle, extra = {}) => {
     if (!state.currentUser) return
     const log = {
       id: generateId(),
@@ -771,6 +771,7 @@ export function AppProvider({ children }) {
       operatorName: state.currentUser.name,
       operatorRole: state.currentUser.role,
       operatedAt: formatDateTime(new Date()),
+      ...extra,
     }
     const logs = [log, ...state.operationLogs]
     storage.set(STORAGE_KEYS.OPERATION_LOGS, logs)
@@ -862,7 +863,7 @@ export function AppProvider({ children }) {
       lastRejectTemplateTitle: '',
       lastRectificationRemark: '',
       submittedAt: article.status === 'pending' ? formatDateTime(new Date()) : '',
-      firstReviewStartTime: '',
+      firstReviewStartTime: article.status === 'pending' ? formatDateTime(new Date()) : '',
       finalReviewStartTime: '',
       timeoutInfo: null,
     }
@@ -884,7 +885,8 @@ export function AppProvider({ children }) {
   }
 
   const batchAddArticles = (articles) => {
-    const now = formatDate(new Date())
+    const nowDate = formatDate(new Date())
+    const nowDateTime = formatDateTime(new Date())
     const newArticles = articles.map((article) => {
       const category = state.categories.find((c) => c.code === article.category)
       const department = state.departments.find((d) => d.name === article.department)
@@ -897,8 +899,8 @@ export function AppProvider({ children }) {
         departmentId: department ? department.id : '',
         authorId: state.currentUser.id,
         authorName: state.currentUser.name,
-        createdAt: now,
-        updatedAt: now,
+        createdAt: nowDate,
+        updatedAt: nowDate,
         reviewedAt: '',
         reviewerId: '',
         reviewerName: '',
@@ -918,8 +920,8 @@ export function AppProvider({ children }) {
         lastRejectTemplateId: '',
         lastRejectTemplateTitle: '',
         lastRectificationRemark: '',
-        submittedAt: article.status === 'pending' ? now : '',
-        firstReviewStartTime: '',
+        submittedAt: article.status === 'pending' ? nowDateTime : '',
+        firstReviewStartTime: article.status === 'pending' ? nowDateTime : '',
         finalReviewStartTime: '',
         timeoutInfo: null,
         deleted: false,
@@ -968,7 +970,7 @@ export function AppProvider({ children }) {
       claimantName = ''
       claimedAt = ''
       submittedAt = formatDateTime(new Date())
-      firstReviewStartTime = ''
+      firstReviewStartTime = formatDateTime(new Date())
       finalReviewStartTime = ''
       if (isResubmit) {
         rectificationCount = rectificationCount + 1
@@ -1074,9 +1076,9 @@ export function AppProvider({ children }) {
     }
 
     const needTwoLevel = isTwoLevelReview(article.category)
-    const now = formatDate(new Date())
+    const now = formatDateTime(new Date())
     const newPublishDate = status === 'published'
-      ? (article.publishDate || now)
+      ? (article.publishDate || formatDate(new Date()))
       : article.publishDate
 
     let firstReviewerId = article.firstReviewerId
@@ -1264,7 +1266,11 @@ export function AppProvider({ children }) {
       addArticleVersion(reviewedArticle, versionType, '', versionExtra)
     }
 
-    addOperationLog(reviewAction, article.title)
+    addOperationLog(reviewAction, article.title, {
+      isTimeoutWhenReviewed,
+      timeoutStatusWhenReviewed,
+      reviewStage: historyStage,
+    })
 
     return { success: true }
   }
@@ -1284,26 +1290,12 @@ export function AppProvider({ children }) {
     }
 
     const now = formatDateTime(new Date())
-    let firstReviewStartTime = article.firstReviewStartTime || ''
-    let finalReviewStartTime = article.finalReviewStartTime || ''
-
-    if (article.status === 'pending') {
-      if (!firstReviewStartTime) {
-        firstReviewStartTime = now
-      }
-    } else if (article.status === 'first_reviewed') {
-      if (!finalReviewStartTime) {
-        finalReviewStartTime = now
-      }
-    }
 
     const claimData = {
       id,
       claimantId: currentUser.id,
       claimantName: currentUser.name,
       claimedAt: now,
-      firstReviewStartTime,
-      finalReviewStartTime,
     }
 
     const articles = state.articles.map((a) =>
@@ -1313,8 +1305,6 @@ export function AppProvider({ children }) {
             claimantId: currentUser.id,
             claimantName: currentUser.name,
             claimedAt: now,
-            firstReviewStartTime,
-            finalReviewStartTime,
           }
         : a
     )
@@ -1910,7 +1900,8 @@ export function AppProvider({ children }) {
   }
 
   const partialBatchImport = (articles, draftId = null) => {
-    const now = formatDate(new Date())
+    const nowDate = formatDate(new Date())
+    const nowDateTime = formatDateTime(new Date())
     const newArticles = articles.map((article) => {
       const category = state.categories.find((c) => c.code === article.category)
       const department = state.departments.find((d) => d.name === article.department)
@@ -1923,8 +1914,8 @@ export function AppProvider({ children }) {
         departmentId: department ? department.id : '',
         authorId: state.currentUser.id,
         authorName: state.currentUser.name,
-        createdAt: now,
-        updatedAt: now,
+        createdAt: nowDate,
+        updatedAt: nowDate,
         reviewedAt: '',
         reviewerId: '',
         reviewerName: '',
@@ -1944,8 +1935,8 @@ export function AppProvider({ children }) {
         lastRejectTemplateId: '',
         lastRejectTemplateTitle: '',
         lastRectificationRemark: '',
-        submittedAt: article.status === 'pending' ? now : '',
-        firstReviewStartTime: '',
+        submittedAt: article.status === 'pending' ? nowDateTime : '',
+        firstReviewStartTime: article.status === 'pending' ? nowDateTime : '',
         finalReviewStartTime: '',
         timeoutInfo: null,
         deleted: false,

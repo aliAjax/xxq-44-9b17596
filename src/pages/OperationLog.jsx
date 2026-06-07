@@ -3,7 +3,7 @@ import { Search, ClipboardList } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import Pagination from '../components/Pagination'
 import { useApp } from '../context/useApp'
-import { OPERATION_ACTIONS, getActionText, getActionColor, getRoleText } from '../utils/helpers'
+import { OPERATION_ACTIONS, getActionText, getActionColor, getRoleText, TIMEOUT_STATUS } from '../utils/helpers'
 
 const PAGE_SIZE = 10
 
@@ -77,6 +77,9 @@ export default function OperationLog() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
                   动作
                 </th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase w-28">
+                  时效状态
+                </th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
                   文章标题
                 </th>
@@ -108,6 +111,21 @@ export default function OperationLog() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
+                      {log.isTimeoutWhenReviewed ? (
+                        <span
+                          className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                            log.timeoutStatusWhenReviewed === TIMEOUT_STATUS.OVERDUE
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}
+                        >
+                          {log.timeoutStatusWhenReviewed === TIMEOUT_STATUS.OVERDUE ? '已超时处理' : '即将超时处理'}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="text-sm text-gray-900 line-clamp-1">
                         {log.articleTitle}
                       </div>
@@ -119,7 +137,7 @@ export default function OperationLog() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan="6" className="px-4 py-12 text-center text-gray-400">
                     <div className="flex flex-col items-center gap-2">
                       <ClipboardList className="w-10 h-10 text-gray-300" />
                       <span>暂无操作记录</span>
