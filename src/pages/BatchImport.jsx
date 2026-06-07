@@ -11,18 +11,14 @@ import {
   Info,
   Save,
   FileArchive,
-  Edit2,
-  Check,
   X,
   ChevronDown,
   ChevronUp,
   Paperclip,
-  Trash2,
-  Square,
-  CheckSquare,
 } from 'lucide-react'
 import AdminLayout from '../components/AdminLayout'
 import { useApp } from '../context/useApp'
+import { storage, STORAGE_KEYS } from '../utils/storage'
 
 const SAMPLE_CSV = `标题,类别,发布科室,发布日期,正文,附件名称,附件链接
 关于开展2024年度政务公开培训的通知,notice,办公室,2024-06-01,"各科室、各下属单位：
@@ -156,7 +152,6 @@ function validateRow(rowData, categories, departments, existingTitles, allRows) 
 export default function BatchImport() {
   const {
     state,
-    batchAddArticles,
     saveImportDraft,
     updateImportDraft,
     getImportDraftById,
@@ -172,12 +167,10 @@ export default function BatchImport() {
   const [importResult, setImportResult] = useState(null)
   const [isImporting, setIsImporting] = useState(false)
   const [selectedRows, setSelectedRows] = useState(new Set())
-  const [editingRow, setEditingRow] = useState(null)
   const [expandedRows, setExpandedRows] = useState(new Set())
   const [showSaveDraftModal, setShowSaveDraftModal] = useState(false)
   const [draftName, setDraftName] = useState('')
   const [currentDraftId, setCurrentDraftId] = useState(null)
-  const [editingField, setEditingField] = useState(null)
 
   const existingTitles = useMemo(
     () => new Set(state.articles.filter((a) => !a.deleted).map((a) => a.title.trim())),
@@ -186,8 +179,18 @@ export default function BatchImport() {
 
   useEffect(() => {
     const draftId = searchParams.get('draftId')
-    if (draftId) {
-      const draft = getImportDraftById(draftId)
+    if (draftId && !parsedData) {
+      let draft = null
+
+      if (state.importDrafts.length > 0) {
+        draft = getImportDraftById(draftId)
+      }
+
+      if (!draft) {
+        const allDrafts = storage.get(STORAGE_KEYS.IMPORT_DRAFTS) || []
+        draft = allDrafts.find((d) => d.id === draftId) || null
+      }
+
       if (draft) {
         setParsedData(draft.rows)
         setCurrentDraftId(draft.id)
@@ -195,7 +198,7 @@ export default function BatchImport() {
         setInputMode(draft.sourceType)
       }
     }
-  }, [searchParams, getImportDraftById])
+  }, [searchParams, getImportDraftById, state.importDrafts, parsedData])
 
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0]
@@ -251,7 +254,6 @@ export default function BatchImport() {
     setParsedData(validatedRows)
     setImportResult(null)
     setSelectedRows(new Set(validatedRows.filter((r) => r.isValid).map((_, i) => i)))
-    setEditingRow(null)
     setExpandedRows(new Set())
   }
 
@@ -429,7 +431,6 @@ export default function BatchImport() {
     setParsedData(null)
     setImportResult(null)
     setSelectedRows(new Set())
-    setEditingRow(null)
     setExpandedRows(new Set())
     setCurrentDraftId(null)
     setDraftName('')
@@ -1027,7 +1028,7 @@ export default function BatchImport() {
                 autoFocus
               />
               <p className="mt-2 text-xs text-gray-500">
-                保存后可在"导入草稿箱"中继续编辑，刷新页面不会丢失
+                保存后可在『导入草稿箱』中继续编辑，刷新页面不会丢失
               </p>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
